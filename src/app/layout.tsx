@@ -21,8 +21,6 @@ export default function RootLayout({
     setFirebaseInstance(instance);
   }, []);
 
-  if (!firebaseInstance) return null;
-
   return (
     <html lang="en" className="dark">
       <head>
@@ -32,24 +30,33 @@ export default function RootLayout({
         <title>Lumina Finance | Intelligent Budgeting</title>
       </head>
       <body className="font-body antialiased bg-background text-foreground min-h-screen">
-        <FirebaseClientProvider 
-          firebaseApp={firebaseInstance.firebaseApp} 
-          firestore={firebaseInstance.firestore} 
-          auth={firebaseInstance.auth}
-        >
-          <AuthGuard>
-            <div className="flex min-h-screen">
-              <Sidebar />
-              <div className="flex-1 flex flex-col min-w-0">
-                <MobileNav />
-                <main className="flex-1 overflow-y-auto">
-                  {children}
-                </main>
-              </div>
+        {!firebaseInstance ? (
+          <div className="flex items-center justify-center min-h-screen bg-background">
+            <div className="animate-pulse flex flex-col items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-primary/20 border border-primary/40" />
+              <div className="h-4 w-32 bg-muted rounded" />
             </div>
-          </AuthGuard>
-          <Toaster />
-        </FirebaseClientProvider>
+          </div>
+        ) : (
+          <FirebaseClientProvider 
+            firebaseApp={firebaseInstance.firebaseApp} 
+            firestore={firebaseInstance.firestore} 
+            auth={firebaseInstance.auth}
+          >
+            <AuthGuard>
+              <div className="flex min-h-screen">
+                <Sidebar />
+                <div className="flex-1 flex flex-col min-w-0">
+                  <MobileNav />
+                  <main className="flex-1 overflow-y-auto">
+                    {children}
+                  </main>
+                </div>
+              </div>
+            </AuthGuard>
+            <Toaster />
+          </FirebaseClientProvider>
+        )}
       </body>
     </html>
   );
