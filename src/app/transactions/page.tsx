@@ -124,7 +124,7 @@ export default function TransactionsPage() {
               <DialogHeader>
                 <DialogTitle className="font-headline text-3xl font-bold mb-2">New Expense</DialogTitle>
                 <DialogDescription className="text-muted-foreground text-sm">
-                  Capture transaction details and use AI for instant tagging.
+                  Capture transaction details and use AI for instant tagging and classification.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-8 py-6">

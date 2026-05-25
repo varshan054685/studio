@@ -56,7 +56,7 @@ export default function GoalsPage() {
             <DialogHeader>
               <DialogTitle className="font-headline text-3xl font-bold mb-2">Set Target</DialogTitle>
               <DialogDescription className="text-muted-foreground text-sm">
-                Define a monthly limit for a specific spending category.
+                Define a monthly limit for a specific spending category to stay on track.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-8 py-6">
