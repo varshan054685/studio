@@ -12,7 +12,6 @@ import {z} from 'genkit';
 
 /**
  * Input schema for the AI spending insights flow.
- * It includes a list of transactions, optional budget goals, and a summary period.
  */
 const AISpendingInsightsInputSchema = z.object({
   transactions: z.array(
@@ -35,7 +34,6 @@ export type AISpendingInsightsInput = z.infer<typeof AISpendingInsightsInputSche
 
 /**
  * Output schema for the AI spending insights flow.
- * It includes overall insights, category-specific insights with recommendations, detected anomalies, and general budget optimization tips.
  */
 const AISpendingInsightsOutputSchema = z.object({
   overallInsights: z.string().describe('A general summary of spending patterns for the given period, highlighting key trends.'),
@@ -53,8 +51,6 @@ export type AISpendingInsightsOutput = z.infer<typeof AISpendingInsightsOutputSc
 
 /**
  * Analyzes user spending patterns and provides personalized recommendations for budget optimization.
- * @param input The spending data including transactions, optional budget goals, and the summary period.
- * @returns An object containing overall insights, category-specific insights, detected anomalies, and general budget optimization tips.
  */
 export async function getAISpendingInsights(
   input: AISpendingInsightsInput
@@ -64,7 +60,6 @@ export async function getAISpendingInsights(
 
 /**
  * Defines the prompt for the AI spending insights flow.
- * This prompt instructs the LLM to act as a financial advisor and analyze the provided spending data.
  */
 const aiSpendingInsightsPrompt = ai.definePrompt({
   name: 'aiSpendingInsightsPrompt',
@@ -88,17 +83,14 @@ Budget Goals:
 
 Please provide a comprehensive analysis structured to match the output schema:
 
-1.  **Overall Insights**: A general summary of spending patterns for the {{summaryPeriod}}. Highlight key trends, significant changes, or overall financial health observations.
-2.  **Category Insights**: For each spending category, provide an 'analysis' of spending behavior. If budget goals are provided, compare actual spending against the limits and explain any overages or significant underspending. Then, offer 2-3 'recommendations' for optimizing spending within that specific category.
-3.  **Anomalies Detected**: Identify any unusual transactions, spending spikes, or potentially problematic patterns. List each anomaly with a brief explanation.
-4.  **Budget Optimization Tips**: Provide 3-5 general tips and strategies for improving financial health and saving habits based on the overall spending patterns and insights.
-
-Ensure your recommendations are practical, easy to implement, and tailored to the provided data.`
+1.  **Overall Insights**: A general summary of spending patterns for the {{summaryPeriod}}.
+2.  **Category Insights**: For each spending category, provide an 'analysis' and 2-3 'recommendations'.
+3.  **Anomalies Detected**: Identify any unusual transactions or spending spikes.
+4.  **Budget Optimization Tips**: Provide 3-5 general tips for improving financial health.`,
 });
 
 /**
  * Defines the Genkit flow for AI spending insights.
- * This flow uses the 'aiSpendingInsightsPrompt' to generate insights based on user spending data.
  */
 const aiSpendingInsightsFlow = ai.defineFlow(
   {
@@ -109,7 +101,7 @@ const aiSpendingInsightsFlow = ai.defineFlow(
   async (input) => {
     const { output } = await aiSpendingInsightsPrompt(input);
     if (!output) {
-      throw new Error('Failed to generate spending insights.');
+      throw new Error('Failed to generate spending insights. Please check your API key configuration.');
     }
     return output;
   }

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -8,11 +7,13 @@ import { MOCK_TRANSACTIONS, MOCK_BUDGETS } from "@/app/lib/mock-data";
 import { getAISpendingInsights, AISpendingInsightsOutput } from "@/ai/flows/ai-spending-insights-flow";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 export default function InsightsPage() {
   const [loading, setLoading] = useState(false);
   const [insights, setInsights] = useState<AISpendingInsightsOutput | null>(null);
+  const { toast } = useToast();
 
   const generateInsights = async () => {
     setLoading(true);
@@ -31,8 +32,17 @@ export default function InsightsPage() {
         summaryPeriod: "last month"
       });
       setInsights(data);
-    } catch (error) {
+      toast({
+        title: "Analysis Complete",
+        description: "AI has successfully processed your financial data.",
+      });
+    } catch (error: any) {
       console.error(error);
+      toast({
+        variant: "destructive",
+        title: "Analysis Failed",
+        description: error.message || "Could not reach the AI brain. Please check your configuration.",
+      });
     } finally {
       setLoading(false);
     }
@@ -84,7 +94,6 @@ export default function InsightsPage() {
 
       {insights && !loading && (
         <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-1000">
-          {/* Overall Summary */}
           <Card className="p-10 glass-card border-primary/30 bg-primary/5 relative overflow-hidden group">
             <div className="flex items-center gap-4 mb-6">
               <div className="p-3 rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
@@ -99,7 +108,6 @@ export default function InsightsPage() {
           </Card>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Anomalies */}
             <Card className="p-8 glass-card border-white/5 relative group">
               <div className="flex items-center gap-4 mb-8">
                 <div className="p-3 rounded-2xl bg-red-500/10 text-red-400 border border-red-500/20">
@@ -123,7 +131,6 @@ export default function InsightsPage() {
               </ul>
             </Card>
 
-            {/* Tips */}
             <Card className="p-8 glass-card border-white/5 relative group">
               <div className="flex items-center gap-4 mb-8">
                 <div className="p-3 rounded-2xl bg-accent/10 text-accent border border-accent/20">
@@ -142,7 +149,6 @@ export default function InsightsPage() {
             </Card>
           </div>
 
-          {/* Category Analysis */}
           <div className="space-y-6">
             <h3 className="text-3xl font-headline font-bold px-4">Category Deep Dive</h3>
             <div className="grid grid-cols-1 gap-6">
