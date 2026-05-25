@@ -7,13 +7,23 @@ export function initializeFirebase(): {
   firebaseApp: FirebaseApp;
   firestore: Firestore;
   auth: Auth;
-} {
-  const firebaseApp =
-    getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-  const firestore = getFirestore(firebaseApp);
-  const auth = getAuth(firebaseApp);
+} | null {
+  try {
+    // initializeApp will throw if apiKey is missing or invalid
+    if (!firebaseConfig.apiKey || firebaseConfig.apiKey === 'undefined') {
+      throw new Error('Firebase API Key is missing or invalid.');
+    }
 
-  return { firebaseApp, firestore, auth };
+    const firebaseApp =
+      getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+    const firestore = getFirestore(firebaseApp);
+    const auth = getAuth(firebaseApp);
+
+    return { firebaseApp, firestore, auth };
+  } catch (error) {
+    console.error('Firebase initialization error:', error);
+    return null;
+  }
 }
 
 export * from './provider';

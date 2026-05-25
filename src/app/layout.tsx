@@ -14,11 +14,37 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const [firebaseInstance, setFirebaseInstance] = useState<any>(null);
+  const [error, setError] = useState<boolean>(false);
 
   useEffect(() => {
     const instance = initializeFirebase();
-    setFirebaseInstance(instance);
+    if (instance) {
+      setFirebaseInstance(instance);
+    } else {
+      setError(true);
+    }
   }, []);
+
+  if (error) {
+    return (
+      <html lang="en" className="dark">
+        <body className="bg-background flex items-center justify-center min-h-screen p-4 text-center">
+          <div className="max-w-md space-y-4">
+            <h1 className="text-2xl font-bold text-destructive">Configuration Required</h1>
+            <p className="text-muted-foreground">
+              Lumina Finance could not initialize Firebase. Please ensure you have added your 
+              Firebase configuration to your environment variables (e.g., in a <code>.env</code> file).
+            </p>
+            <div className="p-4 bg-muted rounded-lg text-left text-xs font-mono overflow-auto">
+              NEXT_PUBLIC_FIREBASE_API_KEY=...<br/>
+              NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=...<br/>
+              NEXT_PUBLIC_FIREBASE_PROJECT_ID=...
+            </div>
+          </div>
+        </body>
+      </html>
+    );
+  }
 
 <<<<<<< HEAD
 =======
