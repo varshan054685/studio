@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -21,6 +20,15 @@ export default function RootLayout({
     setFirebaseInstance(instance);
   }, []);
 
+<<<<<<< HEAD
+=======
+  if (!firebaseInstance) return (
+    <html lang="en" className="dark">
+      <body className="bg-background" />
+    </html>
+  );
+
+>>>>>>> 679ba8a (there is lot of arror fix it)
   return (
     <html lang="en" className="dark">
       <head>
@@ -84,9 +92,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Allow login page to render even if not authenticated
   if (pathname === '/login') return <>{children}</>;
 
-  // Only render children if authenticated
   return user ? <>{children}</> : null;
 }
