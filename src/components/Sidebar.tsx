@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { 
   LayoutDashboard, 
   ReceiptText, 
@@ -15,6 +15,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useUser, useAuth } from "@/firebase";
+import { signOut } from "firebase/auth";
+import { useToast } from "@/hooks/use-toast";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
@@ -25,6 +28,28 @@ const menuItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user } = useUser();
+  const auth = useAuth();
+  const { toast } = useToast();
+
+  const handleLogout = async () => {
+    if (!auth) return;
+    try {
+      await signOut(auth);
+      toast({ title: "Logged out", description: "See you soon!" });
+      router.push('/login');
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Logout Error",
+        description: error.message,
+      });
+    }
+  };
+
+  // Don't show sidebar on login page
+  if (pathname === '/login') return null;
 
   return (
     <aside className="w-72 border-r border-border bg-card/40 backdrop-blur-xl hidden lg:flex flex-col h-screen sticky top-0 shrink-0">
@@ -79,18 +104,21 @@ export function Sidebar() {
         <div className="pt-4 border-t border-white/5">
           <div className="flex items-center gap-3 px-2 mb-4">
             <Avatar className="h-9 w-9 border border-white/10">
-              <AvatarImage src="https://picsum.photos/seed/alex/100/100" />
-              <AvatarFallback>AX</AvatarFallback>
+              <AvatarImage src={user?.photoURL || "https://picsum.photos/seed/alex/100/100"} />
+              <AvatarFallback>{user?.email?.[0].toUpperCase() || 'L'}</AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-foreground truncate">Alex Sterling</p>
-              <p className="text-[10px] text-muted-foreground truncate">alex@lumina.io</p>
+              <p className="text-sm font-bold text-foreground truncate">{user?.displayName || user?.email?.split('@')[0] || 'Anonymous'}</p>
+              <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
             </div>
             <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors">
               <Settings className="h-4 w-4" />
             </button>
           </div>
-          <button className="flex items-center gap-3 w-full px-4 py-3 text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-xl transition-all group">
+          <button 
+            onClick={handleLogout}
+            className="flex items-center gap-3 w-full px-4 py-3 text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-xl transition-all group"
+          >
             <LogOut className="h-4 w-4" />
             <span className="text-sm font-medium">Log Out</span>
           </button>

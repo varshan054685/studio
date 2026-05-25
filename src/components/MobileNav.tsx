@@ -3,11 +3,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Wallet, Menu, X, LayoutDashboard, ReceiptText, Target, Sparkles } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Wallet, Menu, LayoutDashboard, ReceiptText, Target, Sparkles, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { useAuth } from "@/firebase";
+import { signOut } from "firebase/auth";
+import { useToast } from "@/hooks/use-toast";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
@@ -19,6 +22,27 @@ const menuItems = [
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const auth = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const handleLogout = async () => {
+    if (!auth) return;
+    try {
+      await signOut(auth);
+      setOpen(false);
+      toast({ title: "Logged out", description: "See you soon!" });
+      router.push('/login');
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Logout Error",
+        description: error.message,
+      });
+    }
+  };
+
+  if (pathname === '/login') return null;
 
   return (
     <nav className="lg:hidden flex items-center justify-between p-4 border-b border-white/5 bg-card/30 backdrop-blur-md sticky top-0 z-50">
@@ -67,9 +91,16 @@ export function MobileNav() {
             })}
           </div>
 
-          <div className="pt-6 border-t border-white/5">
+          <div className="pt-6 border-t border-white/5 space-y-4">
             <Button className="w-full h-12 rounded-2xl bg-accent text-accent-foreground font-bold font-headline">
               UPGRADE TO PRO
+            </Button>
+            <Button 
+              variant="ghost" 
+              className="w-full h-12 rounded-2xl text-destructive hover:bg-destructive/10 font-bold font-headline gap-2"
+              onClick={handleLogout}
+            >
+              <LogOut className="h-4 w-4" /> LOG OUT
             </Button>
           </div>
         </SheetContent>
