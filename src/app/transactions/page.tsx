@@ -8,7 +8,6 @@ import {
   Plus, 
   Filter, 
   ChevronDown,
-  ArrowUpDown,
   Download,
   Calendar,
   Sparkles,
@@ -74,6 +73,11 @@ export default function TransactionsPage() {
       });
     } catch (error) {
       console.error(error);
+      toast({
+        variant: "destructive",
+        title: "Categorization Failed",
+        description: "Check your API key settings.",
+      });
     } finally {
       setIsCategorizing(false);
     }
