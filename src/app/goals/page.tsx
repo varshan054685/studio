@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -14,6 +13,7 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
+  DialogDescription,
   DialogTrigger,
   DialogFooter
 } from "@/components/ui/dialog";
@@ -55,7 +55,9 @@ export default function GoalsPage() {
           <DialogContent className="glass-card border-white/10 sm:max-w-[450px] p-8">
             <DialogHeader>
               <DialogTitle className="font-headline text-3xl font-bold mb-2">Set Target</DialogTitle>
-              <p className="text-muted-foreground text-sm">Define a monthly limit for a specific spending category.</p>
+              <DialogDescription className="text-muted-foreground text-sm">
+                Define a monthly limit for a specific spending category.
+              </DialogDescription>
             </DialogHeader>
             <div className="grid gap-8 py-6">
               <div className="grid gap-3">

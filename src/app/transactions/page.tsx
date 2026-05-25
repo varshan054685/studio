@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo } from "react";
@@ -30,6 +29,7 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
+  DialogDescription,
   DialogTrigger,
   DialogFooter
 } from "@/components/ui/dialog";
@@ -119,7 +119,9 @@ export default function TransactionsPage() {
             <DialogContent className="glass-card border-white/10 sm:max-w-[500px] p-8">
               <DialogHeader>
                 <DialogTitle className="font-headline text-3xl font-bold mb-2">New Expense</DialogTitle>
-                <p className="text-muted-foreground text-sm">Capture transaction details and use AI for instant tagging.</p>
+                <DialogDescription className="text-muted-foreground text-sm">
+                  Capture transaction details and use AI for instant tagging.
+                </DialogDescription>
               </DialogHeader>
               <div className="grid gap-8 py-6">
                 <div className="grid gap-3">
