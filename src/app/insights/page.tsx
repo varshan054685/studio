@@ -38,10 +38,13 @@ export default function InsightsPage() {
       });
     } catch (error: any) {
       console.error(error);
+      const is503 = error.message?.includes('503') || error.message?.includes('high demand');
       toast({
         variant: "destructive",
-        title: "Analysis Failed",
-        description: error.message || "Could not reach the AI brain. Please check your configuration.",
+        title: is503 ? "AI Service Busy" : "Analysis Failed",
+        description: is503 
+          ? "The AI model is currently experiencing high demand. Please try again in a few seconds." 
+          : (error.message || "Could not reach the AI brain. Please check your configuration."),
       });
     } finally {
       setLoading(false);
