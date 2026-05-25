@@ -17,10 +17,19 @@ export default function RootLayout({
   const [error, setError] = useState<boolean>(false);
 
   useEffect(() => {
-    const instance = initializeFirebase();
-    if (instance) {
-      setFirebaseInstance(instance);
-    } else {
+    try {
+      if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
+        setError(true);
+        return;
+      }
+      const instance = initializeFirebase();
+      if (instance) {
+        setFirebaseInstance(instance);
+      } else {
+        setError(true);
+      }
+    } catch (e) {
+      console.error("Firebase initialization failed:", e);
       setError(true);
     }
   }, []);
@@ -45,16 +54,6 @@ export default function RootLayout({
       </html>
     );
   }
-
-<<<<<<< HEAD
-=======
-  if (!firebaseInstance) return (
-    <html lang="en" className="dark">
-      <body className="bg-background" />
-    </html>
-  );
-
->>>>>>> 679ba8a (there is lot of arror fix it)
   return (
     <html lang="en" className="dark">
       <head>
