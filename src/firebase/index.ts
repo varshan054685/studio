@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore } from 'firebase/firestore';
-import { getAuth, Auth } from 'firebase/auth';
+import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getAuth, Auth, connectAuthEmulator } from 'firebase/auth';
 import { firebaseConfig } from './config';
 
 export function initializeFirebase(): {
@@ -18,6 +18,15 @@ export function initializeFirebase(): {
       getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
     const firestore = getFirestore(firebaseApp);
     const auth = getAuth(firebaseApp);
+
+    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+      const isEmulatorConnected = (auth as any)._emulatorConfig !== undefined;
+      if (!isEmulatorConnected && firebaseConfig.projectId?.startsWith('demo-')) {
+        connectAuthEmulator(auth, 'http://localhost:9099');
+        connectFirestoreEmulator(firestore, 'localhost', 8080);
+        console.log('Connected to Firebase Local Emulators');
+      }
+    }
 
     return { firebaseApp, firestore, auth };
   } catch (error) {
