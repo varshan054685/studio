@@ -101,7 +101,7 @@ Ensure your recommendations are practical, easy to implement, and tailored to th
  * This flow uses the 'aiSpendingInsightsPrompt' to generate insights based on user spending data.
  */
 const aiSpendingInsightsFlow = ai.defineFlow(
-  {p
+  {
     name: 'aiSpendingInsightsFlow',
     inputSchema: AISpendingInsightsInputSchema,
     outputSchema: AISpendingInsightsOutputSchema,
