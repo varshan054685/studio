@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { MOCK_BUDGETS } from "@/app/lib/mock-data";
-import { Target, Plus, TrendingUp, DollarSign, ArrowUpRight, CheckCircle2 } from "lucide-react";
+import { Target, Plus, DollarSign, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
