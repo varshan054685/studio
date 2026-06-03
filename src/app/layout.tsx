@@ -54,6 +54,7 @@ export default function RootLayout({
       </html>
     );
   }
+
   return (
     <html lang="en" className="dark">
       <head>
