@@ -5,6 +5,10 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Formats a number as Indian Rupee (₹) currency.
+ * Uses en-IN locale for proper lakhs/crores formatting.
+ */
 export const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',

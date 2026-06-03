@@ -1,7 +1,11 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getFirestore, Firestore, initializeFirestore } from 'firebase/firestore';
-import { getAuth, Auth, connectAuthEmulator } from 'firebase/auth';
+import { getAuth, Auth } from 'firebase/auth';
 import { firebaseConfig } from './config';
+
+let firebaseApp: FirebaseApp;
+let firestore: Firestore;
+let auth: Auth;
 
 export function initializeFirebase(): {
   firebaseApp: FirebaseApp;
@@ -13,35 +17,17 @@ export function initializeFirebase(): {
       return null;
     }
 
-    const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    
-    // Using initializeFirestore with settings to prevent assertion errors in cloud environments
-    let firestore: Firestore;
-    if (getApps().length > 0) {
-      try {
-        firestore = getFirestore(firebaseApp);
-      } catch (e) {
-        firestore = initializeFirestore(firebaseApp, {
-          experimentalForceLongPolling: true,
-        });
-      }
-    } else {
+    if (getApps().length === 0) {
+      firebaseApp = initializeApp(firebaseConfig);
+      // Force long polling to prevent assertion failures in cloud environments
       firestore = initializeFirestore(firebaseApp, {
         experimentalForceLongPolling: true,
       });
-    }
-    
-    const auth = getAuth(firebaseApp);
-
-    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-      if (firebaseConfig.projectId?.startsWith('demo-')) {
-        // Only connect if not already connected (prevents multiple connection errors)
-        const isEmulatorConnected = (auth as any)._emulatorConfig !== undefined;
-        if (!isEmulatorConnected) {
-          // connectAuthEmulator(auth, 'http://localhost:9099');
-          // connectFirestoreEmulator(firestore, 'localhost', 8080);
-        }
-      }
+      auth = getAuth(firebaseApp);
+    } else {
+      firebaseApp = getApp();
+      firestore = getFirestore(firebaseApp);
+      auth = getAuth(firebaseApp);
     }
 
     return { firebaseApp, firestore, auth };

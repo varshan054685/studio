@@ -22,7 +22,7 @@ export default function RootLayout({
       if (instance) {
         setFirebaseInstance(instance);
       } else {
-        // Only set error if we are certain config is missing
+        // Check if config is actually missing
         if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
           setError(true);
         }
@@ -37,13 +37,13 @@ export default function RootLayout({
     return (
       <html lang="en" className="dark">
         <body className="bg-background flex items-center justify-center min-h-screen p-4 text-center">
-          <div className="max-w-md space-y-4">
-            <h1 className="text-2xl font-bold text-destructive">Configuration Required</h1>
+          <div className="max-w-md space-y-6 glass-card p-10 rounded-3xl border border-white/10">
+            <h1 className="text-3xl font-headline font-bold text-primary">Configuration Needed</h1>
             <p className="text-muted-foreground">
-              Lumina Finance could not initialize Firebase. Please ensure you have added your 
-              Firebase configuration to your environment variables (e.g., in a <code>.env</code> file).
+              Lumina Finance requires a Firebase project. Please add your configuration 
+              to the environment variables.
             </p>
-            <div className="p-4 bg-muted rounded-lg text-left text-xs font-mono overflow-auto">
+            <div className="p-4 bg-muted/50 rounded-xl text-left text-xs font-mono overflow-auto border border-white/5">
               NEXT_PUBLIC_FIREBASE_API_KEY=...<br/>
               NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=...<br/>
               NEXT_PUBLIC_FIREBASE_PROJECT_ID=...
@@ -67,7 +67,7 @@ export default function RootLayout({
           <div className="flex items-center justify-center min-h-screen bg-background">
             <div className="animate-pulse flex flex-col items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-primary/20 border border-primary/40" />
-              <div className="h-4 w-32 bg-muted rounded" />
+              <p className="text-sm font-headline font-bold text-muted-foreground tracking-widest uppercase">Initializing Lumina...</p>
             </div>
           </div>
         ) : (
@@ -111,7 +111,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="animate-pulse flex flex-col items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-primary/20 border border-primary/40" />
-          <div className="h-4 w-32 bg-muted rounded" />
+          <p className="text-sm font-headline font-bold text-muted-foreground tracking-widest uppercase">Authenticating...</p>
         </div>
       </div>
     );
