@@ -18,6 +18,6 @@ export const MOCK_BUDGETS: BudgetGoal[] = [
   { category: 'Groceries', monthlyLimit: 500, currentSpent: 384.50 },
   { category: 'Dining', monthlyLimit: 300, currentSpent: 285.40 },
   { category: 'Transportation', monthlyLimit: 200, currentSpent: 120.00 },
-  { id: 'entertainment', category: 'Entertainment', monthlyLimit: 150, currentSpent: 65.98 },
+  { category: 'Entertainment', monthlyLimit: 150, currentSpent: 65.98 },
   { category: 'Shopping', monthlyLimit: 400, currentSpent: 420.00 },
 ];
