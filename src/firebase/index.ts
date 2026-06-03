@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getFirestore, Firestore, connectFirestoreEmulator, initializeFirestore } from 'firebase/firestore';
 import { getAuth, Auth, connectAuthEmulator } from 'firebase/auth';
 import { firebaseConfig } from './config';
 
@@ -9,14 +9,17 @@ export function initializeFirebase(): {
   auth: Auth;
 } | null {
   try {
-    // initializeApp will throw if apiKey is missing or invalid
     if (!firebaseConfig.apiKey || firebaseConfig.apiKey === 'undefined') {
-      throw new Error('Firebase API Key is missing or invalid.');
+      return null;
     }
 
-    const firebaseApp =
-      getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    const firestore = getFirestore(firebaseApp);
+    const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+    
+    // Use initializeFirestore with experimentalForceLongPolling to prevent assertion errors in cloud environments
+    const firestore = initializeFirestore(firebaseApp, {
+      experimentalForceLongPolling: true,
+    });
+    
     const auth = getAuth(firebaseApp);
 
     if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {

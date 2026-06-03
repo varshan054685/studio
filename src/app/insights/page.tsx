@@ -3,32 +3,49 @@
 import { useState } from "react";
 import { Sparkles, BrainCircuit, Lightbulb, AlertTriangle, RefreshCw, BarChart3, TrendingUp, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { MOCK_TRANSACTIONS, MOCK_BUDGETS } from "@/app/lib/mock-data";
 import { getAISpendingInsights, AISpendingInsightsOutput } from "@/ai/flows/ai-spending-insights-flow";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { useUser, useCollection, useFirestore } from "@/firebase";
+import { collection, query } from "firebase/firestore";
 
 export default function InsightsPage() {
+  const { user } = useUser();
+  const db = useFirestore();
   const [loading, setLoading] = useState(false);
   const [insights, setInsights] = useState<AISpendingInsightsOutput | null>(null);
   const { toast } = useToast();
 
+  const txQuery = user ? query(collection(db, 'users', user.uid, 'transactions')) : null;
+  const goalsQuery = user ? query(collection(db, 'users', user.uid, 'goals')) : null;
+
+  const { data: transactions } = useCollection<any>(txQuery);
+  const { data: goals } = useCollection<any>(goalsQuery);
+
   const generateInsights = async () => {
+    if (!transactions || transactions.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "No Data",
+        description: "Please add some transactions before generating AI insights.",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const data = await getAISpendingInsights({
-        transactions: MOCK_TRANSACTIONS.map(t => ({
+        transactions: transactions.map(t => ({
           date: t.date,
           description: t.description,
           amount: t.amount,
           category: t.category
         })),
-        budgetGoals: MOCK_BUDGETS.map(b => ({
+        budgetGoals: goals?.map(b => ({
           category: b.category,
           monthlyLimit: b.monthlyLimit
-        })),
+        })) || [],
         summaryPeriod: "last month"
       });
       setInsights(data);
@@ -60,7 +77,7 @@ export default function InsightsPage() {
         </div>
         <Button 
           onClick={generateInsights} 
-          disabled={loading}
+          disabled={loading || !transactions?.length}
           className="rounded-xl bg-primary text-primary-foreground font-bold font-headline hover:bg-primary/90 gap-2 h-12 px-6 shadow-[0_0_25px_rgba(186,156,255,0.4)] transition-all"
         >
           {loading ? <RefreshCw className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
@@ -78,8 +95,13 @@ export default function InsightsPage() {
             Our neural analysis tool scans your history to discover patterns, 
             detect leaks, and build a personalized path to your financial goals.
           </p>
-          <Button size="lg" onClick={generateInsights} className="rounded-2xl px-12 h-14 text-lg font-headline font-bold bg-foreground text-background hover:scale-105 transition-all">
-            ANALYZE MY DATA
+          <Button 
+            size="lg" 
+            onClick={generateInsights} 
+            disabled={!transactions?.length}
+            className="rounded-2xl px-12 h-14 text-lg font-headline font-bold bg-foreground text-background hover:scale-105 transition-all disabled:opacity-50"
+          >
+            {transactions?.length ? "ANALYZE MY DATA" : "ADD TRANSACTIONS FIRST"}
           </Button>
         </div>
       )}
