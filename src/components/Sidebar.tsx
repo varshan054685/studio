@@ -11,7 +11,7 @@ import {
   Settings,
   Wallet,
   LogOut,
-  ChevronRight
+  User as UserIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -48,7 +48,6 @@ export function Sidebar() {
     }
   };
 
-  // Don't show sidebar on login page
   if (pathname === '/login') return null;
 
   return (
@@ -85,6 +84,16 @@ export function Sidebar() {
             </Link>
           );
         })}
+        <Link
+          href="/profile"
+          className={cn(
+            "flex items-center gap-3 px-4 py-3 rounded-xl transition-all group",
+            pathname === "/profile" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+          )}
+        >
+          <UserIcon className="h-5 w-5 group-hover:text-primary" />
+          <span className="font-medium text-sm">Account</span>
+        </Link>
       </nav>
       
       <div className="p-4 space-y-4">
@@ -92,7 +101,10 @@ export function Sidebar() {
           <div className="relative z-10">
             <p className="text-[10px] font-headline font-bold text-primary tracking-widest uppercase mb-1">Elite Status</p>
             <p className="text-xs font-medium text-foreground/80 mb-4 leading-relaxed">Unlock advanced AI predictive analytics and multi-account sync.</p>
-            <button className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl text-xs font-bold hover:shadow-[0_0_15px_rgba(186,156,255,0.4)] transition-all transform hover:-translate-y-0.5">
+            <button 
+              onClick={() => router.push('/pro')}
+              className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl text-xs font-bold hover:shadow-[0_0_15px_rgba(186,156,255,0.4)] transition-all transform hover:-translate-y-0.5"
+            >
               GO PRO
             </button>
           </div>
@@ -111,7 +123,7 @@ export function Sidebar() {
               <p className="text-sm font-bold text-foreground truncate">{user?.displayName || user?.email?.split('@')[0] || 'Anonymous'}</p>
               <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
             </div>
-            <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors">
+            <button onClick={() => router.push('/profile')} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors">
               <Settings className="h-4 w-4" />
             </button>
           </div>
