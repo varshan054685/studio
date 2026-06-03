@@ -18,15 +18,14 @@ export default function RootLayout({
 
   useEffect(() => {
     try {
-      if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
-        setError(true);
-        return;
-      }
       const instance = initializeFirebase();
       if (instance) {
         setFirebaseInstance(instance);
       } else {
-        setError(true);
+        // Only set error if we are certain config is missing
+        if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
+          setError(true);
+        }
       }
     } catch (e) {
       console.error("Firebase initialization failed:", e);

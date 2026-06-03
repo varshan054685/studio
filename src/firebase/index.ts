@@ -15,10 +15,15 @@ export function initializeFirebase(): {
 
     const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
     
-    // Use initializeFirestore with experimentalForceLongPolling to prevent assertion errors in cloud environments
-    const firestore = initializeFirestore(firebaseApp, {
-      experimentalForceLongPolling: true,
-    });
+    // Safely initialize Firestore with long-polling to prevent assertion errors in cloud environments
+    let firestore: Firestore;
+    try {
+      firestore = initializeFirestore(firebaseApp, {
+        experimentalForceLongPolling: true,
+      });
+    } catch (e) {
+      firestore = getFirestore(firebaseApp);
+    }
     
     const auth = getAuth(firebaseApp);
 
