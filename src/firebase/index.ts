@@ -22,6 +22,7 @@ export function initializeFirebase(): {
     
     const auth = getAuth(firebaseApp);
 
+    // Only connect to emulators if explicitly in a demo environment
     if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
       const isEmulatorConnected = (auth as any)._emulatorConfig !== undefined;
       if (!isEmulatorConnected && firebaseConfig.projectId?.startsWith('demo-')) {

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useUser, useAuth } from "@/firebase";
@@ -36,7 +35,7 @@ export default function ProfilePage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <Card className="p-8 glass-card border-white/5 flex flex-col items-center text-center space-y-6 h-fit">
           <Avatar className="h-32 w-32 border-4 border-primary/20 shadow-2xl">
-            <AvatarImage src={user?.photoURL || "https://picsum.photos/seed/alex/200/200"} />
+            <AvatarImage src={user?.photoURL || `https://picsum.photos/seed/${user?.uid}/200/200`} />
             <AvatarFallback className="text-4xl">{user?.email?.[0].toUpperCase()}</AvatarFallback>
           </Avatar>
           <div>
