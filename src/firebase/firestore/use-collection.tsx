@@ -8,36 +8,47 @@ import {
   DocumentData,
 } from 'firebase/firestore';
 
-export function useCollection<T = DocumentData>(query: Query<T> | null) {
-  const [data, setData] = useState<T[] | null>(null);
+export function useCollection<T extends object = DocumentData>(query: Query<DocumentData> | null) {
+  const [data, setData] = useState<Array<T & { id: string }> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!query) {
       setLoading(false);
+      setError(null);
       return;
     }
 
     setLoading(true);
-    const unsubscribe = onSnapshot(
-      query,
-      (snapshot: QuerySnapshot<T>) => {
-        const items = snapshot.docs.map((doc) => ({
-          ...doc.data(),
-          id: doc.id,
-        }));
-        setData(items);
-        setLoading(false);
-      },
-      (err) => {
-        console.error('Firestore collection error:', err);
-        setError(err);
-        setLoading(false);
-      }
-    );
+    setError(null);
 
-    return () => unsubscribe();
+    let unsubscribe: (() => void) | null = null;
+
+    try {
+      unsubscribe = onSnapshot(
+        query,
+        (snapshot: QuerySnapshot<DocumentData>) => {
+          const items = snapshot.docs.map((doc) => ({
+            ...(doc.data() as T),
+            id: doc.id,
+          }));
+          setData(items);
+          setLoading(false);
+        },
+        (err) => {
+          console.error('Firestore collection error:', err);
+          setError(err instanceof Error ? err : new Error(String(err)));
+          setLoading(false);
+        }
+      );
+    } catch (err) {
+      console.error('Firestore collection subscription failed:', err);
+      setError(err instanceof Error ? err : new Error(String(err)));
+      setLoading(false);
+    }
+
+    return () => unsubscribe?.();
   }, [query]);
 
   return { data, loading, error };

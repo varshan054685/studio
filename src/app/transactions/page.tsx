@@ -5,10 +5,7 @@ import { useState, useMemo } from "react";
 import { 
   Search, 
   Plus, 
-  Filter, 
-  ChevronDown,
   Download,
-  Calendar,
   Sparkles,
   RefreshCw,
   Trash2
@@ -42,10 +39,11 @@ import {
 } from "@/components/ui/select";
 import { categorizeTransaction } from "@/ai/flows/automatic-transaction-categorization-flow";
 import { useToast } from "@/hooks/use-toast";
-import { cn, formatCurrency } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import { useUser, useCollection, useFirestore } from "@/firebase";
 import { collection, addDoc, deleteDoc, doc, query, orderBy } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { Transaction } from "@/app/lib/types";
 
 export default function TransactionsPage() {
   const { user } = useUser();
@@ -57,13 +55,20 @@ export default function TransactionsPage() {
   const [newCategory, setNewCategory] = useState("Other");
   const [isCategorizing, setIsCategorizing] = useState(false);
   const { toast } = useToast();
+  const uid = user?.uid;
 
-  const transactionsQuery = user ? query(
-    collection(db, 'users', user.uid, 'transactions'),
-    orderBy('date', 'desc')
-  ) : null;
+  const transactionsQuery = useMemo(
+    () =>
+      uid
+        ? query(
+            collection(db, 'users', uid, 'transactions'),
+            orderBy('date', 'desc')
+          )
+        : null,
+    [db, uid]
+  );
 
-  const { data: transactions, loading } = useCollection<any>(transactionsQuery);
+  const { data: transactions, loading, error } = useCollection<Transaction>(transactionsQuery);
 
   const filteredTransactions = useMemo(() => {
     if (!transactions) return [];
@@ -96,12 +101,25 @@ export default function TransactionsPage() {
   };
 
   const handleAddTransaction = async () => {
-    if (!user || !newDesc || !newAmount) return;
+    if (!user) return;
+
+    const description = newDesc.trim();
+    const amount = Number(newAmount);
+
+    if (!description || !Number.isFinite(amount) || amount <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Entry",
+        description: "Enter a description and an amount greater than zero.",
+      });
+      return;
+    }
+
     try {
       await addDoc(collection(db, 'users', user.uid, 'transactions'), {
         date: new Date().toISOString().split('T')[0],
-        description: newDesc,
-        amount: parseFloat(newAmount),
+        description,
+        amount,
         category: newCategory,
         createdAt: new Date().toISOString()
       });
@@ -111,10 +129,11 @@ export default function TransactionsPage() {
       setNewCategory("Other");
       toast({
         title: "Transaction Logged",
-        description: `${newDesc} added successfully.`,
+        description: `${description} added successfully.`,
       });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Save Error", description: e.message });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ variant: "destructive", title: "Save Error", description: message });
     }
   };
 
@@ -123,9 +142,41 @@ export default function TransactionsPage() {
     try {
       await deleteDoc(doc(db, 'users', user.uid, 'transactions', id));
       toast({ title: "Removed", description: "Transaction deleted." });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Error", description: e.message });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ variant: "destructive", title: "Error", description: message });
     }
+  };
+
+  const handleExport = () => {
+    const dataToExport = filteredTransactions.length ? filteredTransactions : transactions ?? [];
+    if (dataToExport.length === 0) {
+      toast({ variant: "destructive", title: "Nothing to export", description: "Add transactions before exporting." });
+      return;
+    }
+
+    const csvRows = [
+      ["Date", "Description", "Category", "Amount"],
+      ...dataToExport.map((t) => [
+        t.date,
+        t.description.replace(/"/g, '""'),
+        t.category,
+        t.amount.toString(),
+      ]),
+    ];
+
+    const csvContent = csvRows.map((row) => row.map((cell) => `"${cell}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "lumina-transactions.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast({ title: "Export started", description: "Your transactions CSV is downloading." });
   };
 
   return (
@@ -136,7 +187,7 @@ export default function TransactionsPage() {
           <p className="text-muted-foreground text-lg">Detailed feed of all financial activities.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" className="gap-2 rounded-xl h-12 bg-muted/30 border-white/5 font-bold font-headline">
+          <Button variant="outline" onClick={handleExport} className="gap-2 rounded-xl h-12 bg-muted/30 border-white/5 font-bold font-headline">
             <Download className="h-4 w-4" /> EXPORT
           </Button>
           <Dialog open={isAdding} onOpenChange={setIsAdding}>
@@ -227,6 +278,11 @@ export default function TransactionsPage() {
         {loading ? (
           <div className="p-10 space-y-4">
             {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
+          </div>
+        ) : error ? (
+          <div className="p-10 text-center text-destructive">
+            <h2 className="text-xl font-bold mb-2">Unable to load transactions</h2>
+            <p>{error.message || 'Permission denied while reading your transaction history.'}</p>
           </div>
         ) : (
           <Table>

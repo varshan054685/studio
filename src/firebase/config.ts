@@ -10,7 +10,7 @@ export const firebaseConfig = {
 // Simple check to help debug missing environment variables
 if (typeof window !== 'undefined') {
   const missingKeys = Object.entries(firebaseConfig)
-    .filter(([_, value]) => !value || value === 'undefined')
+    .filter(([, value]) => !value || value === 'undefined')
     .map(([key]) => key);
 
   if (missingKeys.length > 0) {

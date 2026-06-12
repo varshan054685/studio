@@ -10,31 +10,42 @@ import {
 } from 'firebase/firestore';
 
 export function useDoc<T = DocumentData>(ref: DocumentReference<T> | null) {
-  const [data, setData] = useState<T | null>(null);
+  const [data, setData] = useState<(T & { id: string }) | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!ref) {
       setLoading(false);
+      setError(null);
       return;
     }
 
     setLoading(true);
-    const unsubscribe = onSnapshot(
-      ref,
-      (snapshot: DocumentSnapshot<T>) => {
-        setData(snapshot.exists() ? { ...snapshot.data(), id: snapshot.id } : null);
-        setLoading(false);
-      },
-      (err) => {
-        console.error('Firestore doc error:', err);
-        setError(err);
-        setLoading(false);
-      }
-    );
+    setError(null);
 
-    return () => unsubscribe();
+    let unsubscribe: (() => void) | null = null;
+
+    try {
+      unsubscribe = onSnapshot(
+        ref,
+        (snapshot: DocumentSnapshot<T>) => {
+          setData(snapshot.exists() ? { ...snapshot.data(), id: snapshot.id } : null);
+          setLoading(false);
+        },
+        (err) => {
+          console.error('Firestore doc error:', err);
+          setError(err instanceof Error ? err : new Error(String(err)));
+          setLoading(false);
+        }
+      );
+    } catch (err) {
+      console.error('Firestore doc subscription failed:', err);
+      setError(err instanceof Error ? err : new Error(String(err)));
+      setLoading(false);
+    }
+
+    return () => unsubscribe?.();
   }, [ref]);
 
   return { data, loading, error };

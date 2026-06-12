@@ -9,10 +9,10 @@ import {
   CreditCard,
   ArrowRight,
   Sparkles,
-  ArrowUpRight,
   CalendarDays,
   PlusCircle
 } from "lucide-react";
+import type { Transaction, BudgetGoal } from "@/app/lib/types";
 import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 import { 
@@ -28,6 +28,7 @@ import {
   Bar
 } from "recharts";
 import { cn, formatCurrency } from "@/lib/utils";
+import { useMemo } from "react";
 import { useUser, useCollection } from "@/firebase";
 import { collection, query, orderBy, limit } from "firebase/firestore";
 import { useFirestore } from "@/firebase";
@@ -36,19 +37,27 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function Dashboard() {
   const { user } = useUser();
   const db = useFirestore();
+  const uid = user?.uid;
 
-  const transactionsQuery = user ? query(
-    collection(db, 'users', user.uid, 'transactions'),
-    orderBy('date', 'desc'),
-    limit(10)
-  ) : null;
+  const transactionsQuery = useMemo(
+    () =>
+      uid
+        ? query(
+            collection(db, 'users', uid, 'transactions'),
+            orderBy('date', 'desc'),
+            limit(10)
+          )
+        : null,
+    [db, uid]
+  );
 
-  const goalsQuery = user ? query(
-    collection(db, 'users', user.uid, 'goals')
-  ) : null;
+  const goalsQuery = useMemo(
+    () => (uid ? query(collection(db, 'users', uid, 'goals')) : null),
+    [db, uid]
+  );
 
-  const { data: transactions, loading: txLoading } = useCollection<any>(transactionsQuery);
-  const { data: goals, loading: goalsLoading } = useCollection<any>(goalsQuery);
+  const { data: transactions, loading: txLoading } = useCollection<Transaction>(transactionsQuery);
+  const { data: goals, loading: goalsLoading } = useCollection<BudgetGoal>(goalsQuery);
 
   const totalSpend = transactions?.reduce((sum, t) => sum + t.amount, 0) || 0;
   const monthlyBudget = goals?.reduce((sum, b) => sum + b.monthlyLimit, 0) || 0;

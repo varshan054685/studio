@@ -13,8 +13,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const [firebaseInstance, setFirebaseInstance] = useState<any>(null);
-  const [error, setError] = useState<boolean>(false);
+  const [firebaseInstance, setFirebaseInstance] = useState<ReturnType<typeof initializeFirebase> | null>(null);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     try {

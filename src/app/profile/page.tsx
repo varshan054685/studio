@@ -1,11 +1,23 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useUser, useAuth } from "@/firebase";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { User, Mail, Shield, Zap, LogOut, ChevronRight } from "lucide-react";
-import { signOut } from "firebase/auth";
+import { signOut, updateProfile } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 
@@ -14,14 +26,41 @@ export default function ProfilePage() {
   const auth = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+  const [isEditing, setIsEditing] = useState(false);
+  const [displayName, setDisplayName] = useState("");
+  const [photoURL, setPhotoURL] = useState("");
+
+  useEffect(() => {
+    setDisplayName(user?.displayName ?? "");
+    setPhotoURL(user?.photoURL ?? "");
+  }, [user]);
+
+  const currentDisplayName = displayName || user?.displayName || user?.email?.split('@')[0] || "Anonymous";
+  const currentPhotoURL = photoURL || user?.photoURL || undefined;
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
       toast({ title: "Logged out", description: "Safe travels!" });
       router.push('/login');
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Error", description: e.message });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ variant: "destructive", title: "Error", description: message });
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    try {
+      await updateProfile(user, {
+        displayName: displayName.trim() || null,
+        photoURL: photoURL.trim() || null,
+      });
+      toast({ title: "Profile Updated", description: "Your account details are now current." });
+      setIsEditing(false);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ variant: "destructive", title: "Update Failed", description: message });
     }
   };
 
@@ -37,11 +76,11 @@ export default function ProfilePage() {
         <div className="space-y-6">
           <Card className="p-8 glass-card border-white/5 flex flex-col items-center text-center space-y-6">
             <Avatar className="h-32 w-32 border-4 border-primary/20 shadow-2xl">
-              <AvatarImage src={user?.photoURL || `https://picsum.photos/seed/${user?.uid}/200/200`} />
+              <AvatarImage src={currentPhotoURL || `https://picsum.photos/seed/${user?.uid}/200/200`} />
               <AvatarFallback className="text-4xl bg-primary/10 text-primary">{user?.email?.[0].toUpperCase()}</AvatarFallback>
             </Avatar>
             <div>
-              <h2 className="text-2xl font-headline font-bold">{user?.displayName || user?.email?.split('@')[0]}</h2>
+              <h2 className="text-2xl font-headline font-bold">{currentDisplayName}</h2>
               <p className="text-muted-foreground text-sm flex items-center justify-center gap-1.5 mt-1">
                 <Mail className="h-3 w-3" /> {user?.email}
               </p>
@@ -60,11 +99,11 @@ export default function ProfilePage() {
           <Card className="p-6 glass-card border-white/5 space-y-4">
             <h4 className="text-sm font-headline font-bold text-foreground uppercase tracking-wider">Quick Actions</h4>
             <div className="space-y-1">
-              <Button variant="ghost" className="w-full justify-between h-12 rounded-xl hover:bg-white/5 text-muted-foreground hover:text-foreground group">
+              <Button variant="ghost" onClick={() => toast({ title: "Privacy Settings", description: "Privacy settings are coming soon." })} className="w-full justify-between h-12 rounded-xl hover:bg-white/5 text-muted-foreground hover:text-foreground group">
                 <span className="flex items-center gap-3"><Shield className="h-4 w-4" /> Privacy Settings</span>
                 <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
               </Button>
-              <Button variant="ghost" className="w-full justify-between h-12 rounded-xl hover:bg-white/5 text-muted-foreground hover:text-foreground group">
+              <Button variant="ghost" onClick={() => toast({ title: "Connected Apps", description: "Connected apps support is coming soon." })} className="w-full justify-between h-12 rounded-xl hover:bg-white/5 text-muted-foreground hover:text-foreground group">
                 <span className="flex items-center gap-3"><Zap className="h-4 w-4" /> Connected Apps</span>
                 <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
               </Button>
@@ -83,7 +122,7 @@ export default function ProfilePage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-2">
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Full Name</p>
-                  <p className="text-lg font-medium p-4 bg-muted/30 rounded-2xl border border-white/5">{user?.displayName || 'Set in Settings'}</p>
+                  <p className="text-lg font-medium p-4 bg-muted/30 rounded-2xl border border-white/5">{currentDisplayName || 'Set in Settings'}</p>
                 </div>
                 <div className="space-y-2">
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Email Provider</p>
@@ -101,9 +140,44 @@ export default function ProfilePage() {
               </div>
 
               <div className="pt-8 border-t border-white/5 flex flex-col sm:flex-row gap-4">
-                <Button className="flex-1 h-14 rounded-2xl bg-foreground text-background font-bold font-headline hover:bg-foreground/90">
-                  EDIT PROFILE
-                </Button>
+                <Dialog open={isEditing} onOpenChange={setIsEditing}>
+                  <DialogTrigger asChild>
+                    <Button className="flex-1 h-14 rounded-2xl bg-foreground text-background font-bold font-headline hover:bg-foreground/90">
+                      EDIT PROFILE
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="glass-card border-white/10 sm:max-w-[500px] p-8">
+                    <DialogHeader>
+                      <DialogTitle className="font-headline text-3xl font-bold mb-2">Edit Profile</DialogTitle>
+                      <DialogDescription>Update your display name and profile photo URL.</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-6 py-4">
+                      <div className="grid gap-3">
+                        <Label htmlFor="display-name">Display Name</Label>
+                        <Input
+                          id="display-name"
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                          className="bg-muted border-none h-12 rounded-xl"
+                        />
+                      </div>
+                      <div className="grid gap-3">
+                        <Label htmlFor="photo-url">Photo URL</Label>
+                        <Input
+                          id="photo-url"
+                          value={photoURL}
+                          onChange={(e) => setPhotoURL(e.target.value)}
+                          className="bg-muted border-none h-12 rounded-xl"
+                          placeholder="https://..."
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter className="pt-4">
+                      <Button variant="ghost" onClick={() => setIsEditing(false)} className="rounded-xl">Cancel</Button>
+                      <Button onClick={handleSaveProfile} className="bg-primary text-primary-foreground px-8 font-bold font-headline h-12 rounded-xl">SAVE CHANGES</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
                 <Button 
                   onClick={handleLogout}
                   variant="destructive" 

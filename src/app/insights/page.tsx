@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Sparkles, BrainCircuit, Lightbulb, AlertTriangle, RefreshCw, BarChart3, TrendingUp, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getAISpendingInsights, AISpendingInsightsOutput } from "@/ai/flows/ai-spending-insights-flow";
@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useCollection, useFirestore } from "@/firebase";
 import { collection, query } from "firebase/firestore";
+import type { Transaction, BudgetGoal } from "@/app/lib/types";
 
 export default function InsightsPage() {
   const { user } = useUser();
@@ -16,12 +17,19 @@ export default function InsightsPage() {
   const [loading, setLoading] = useState(false);
   const [insights, setInsights] = useState<AISpendingInsightsOutput | null>(null);
   const { toast } = useToast();
+  const uid = user?.uid;
 
-  const txQuery = user ? query(collection(db, 'users', user.uid, 'transactions')) : null;
-  const goalsQuery = user ? query(collection(db, 'users', user.uid, 'goals')) : null;
+  const txQuery = useMemo(
+    () => (uid ? query(collection(db, 'users', uid, 'transactions')) : null),
+    [db, uid]
+  );
+  const goalsQuery = useMemo(
+    () => (uid ? query(collection(db, 'users', uid, 'goals')) : null),
+    [db, uid]
+  );
 
-  const { data: transactions } = useCollection<any>(txQuery);
-  const { data: goals } = useCollection<any>(goalsQuery);
+  const { data: transactions, error: txError } = useCollection<Transaction>(txQuery);
+  const { data: goals, error: goalsError } = useCollection<BudgetGoal>(goalsQuery);
 
   const generateInsights = async () => {
     if (!transactions || transactions.length === 0) {
@@ -53,15 +61,16 @@ export default function InsightsPage() {
         title: "Analysis Complete",
         description: "AI has successfully processed your financial data.",
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error(error);
-      const is503 = error.message?.includes('503') || error.message?.includes('high demand');
+      const message = error instanceof Error ? error.message : String(error);
+      const is503 = message.includes('503') || message.includes('high demand');
       toast({
         variant: "destructive",
         title: is503 ? "AI Service Busy" : "Analysis Failed",
         description: is503 
           ? "The AI model is currently experiencing high demand. Please try again in a few seconds." 
-          : (error.message || "Could not reach the AI brain. Please check your configuration."),
+          : (message || "Could not reach the AI brain. Please check your configuration."),
       });
     } finally {
       setLoading(false);
@@ -70,6 +79,12 @@ export default function InsightsPage() {
 
   return (
     <div className="p-4 md:p-8 lg:p-12 max-w-5xl mx-auto w-full space-y-10">
+      {(txError || goalsError) && (
+        <div className="rounded-3xl border border-destructive/20 bg-destructive/10 p-6 text-destructive">
+          <h2 className="text-xl font-bold mb-1">Unable to load insight data</h2>
+          <p>{txError?.message || goalsError?.message || 'Permission denied when fetching your financial data.'}</p>
+        </div>
+      )}
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h1 className="text-4xl md:text-5xl font-headline font-bold text-foreground mb-2">AI Intelligence</h1>
@@ -126,7 +141,7 @@ export default function InsightsPage() {
               </div>
               <h2 className="text-3xl font-headline font-bold">The Verdict</h2>
             </div>
-            <p className="text-xl leading-relaxed text-foreground/90 font-medium tracking-tight italic">"{insights.overallInsights}"</p>
+            <p className="text-xl leading-relaxed text-foreground/90 font-medium tracking-tight italic">“{insights.overallInsights}”</p>
             <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
               <Sparkles className="h-48 w-48 text-primary" />
             </div>

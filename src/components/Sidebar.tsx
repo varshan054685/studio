@@ -39,11 +39,12 @@ export function Sidebar() {
       await signOut(auth);
       toast({ title: "Logged out", description: "See you soon!" });
       router.push('/login');
-    } catch (error: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         variant: "destructive",
         title: "Logout Error",
-        description: error.message,
+        description: message,
       });
     }
   };

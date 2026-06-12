@@ -4,9 +4,15 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Sparkles, Zap, Shield, Globe, Layers } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ProPage() {
   const router = useRouter();
+  const { toast } = useToast();
+
+  const handleUpgrade = () => {
+    toast({ title: "Upgrade Requested", description: "Premium checkout is not yet configured. Contact support to complete your upgrade." });
+  };
 
   const features = [
     { icon: Sparkles, title: "Advanced AI", desc: "Predictive spending and deep neural insights." },
@@ -61,7 +67,7 @@ export default function ProPage() {
         </div>
         
         <div className="w-full md:w-auto space-y-4 text-center">
-          <Button className="w-full md:w-64 h-16 rounded-2xl bg-primary text-primary-foreground font-bold font-headline text-xl shadow-[0_0_30px_rgba(186,156,255,0.4)]">
+          <Button onClick={handleUpgrade} className="w-full md:w-64 h-16 rounded-2xl bg-primary text-primary-foreground font-bold font-headline text-xl shadow-[0_0_30px_rgba(186,156,255,0.4)]">
             UPGRADE NOW
           </Button>
           <p className="text-xs text-muted-foreground">30-day money-back guarantee. Cancel anytime.</p>

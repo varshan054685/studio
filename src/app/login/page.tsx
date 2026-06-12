@@ -40,11 +40,12 @@ export default function LoginPage() {
         toast({ title: "Account created", description: "Welcome to Lumina!" });
       }
       router.push('/');
-    } catch (error: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         variant: "destructive",
         title: "Authentication Error",
-        description: error.message,
+        description: message,
       });
     } finally {
       setLoading(false);
@@ -58,11 +59,12 @@ export default function LoginPage() {
       await signInWithPopup(auth, provider);
       toast({ title: "Welcome!", description: "Successfully logged in with Google." });
       router.push('/');
-    } catch (error: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         variant: "destructive",
         title: "Google Sign-In Error",
-        description: error.message,
+        description: message,
       });
     }
   };

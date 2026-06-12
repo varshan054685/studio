@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Target, Plus, DollarSign, CheckCircle2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -20,8 +20,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useUser, useCollection, useFirestore } from "@/firebase";
-import { collection, addDoc, deleteDoc, doc, query } from "firebase/firestore";
+import { collection, addDoc, deleteDoc, doc, query, updateDoc } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { BudgetGoal } from "@/app/lib/types";
 
 export default function GoalsPage() {
   const { user } = useUser();
@@ -29,20 +30,48 @@ export default function GoalsPage() {
   const [isAdding, setIsAdding] = useState(false);
   const [newCat, setNewCat] = useState("");
   const [newLimit, setNewLimit] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<(BudgetGoal & { id: string }) | null>(null);
+  const [editingCategory, setEditingCategory] = useState("");
+  const [editingLimit, setEditingLimit] = useState("");
+  const [editingSpent, setEditingSpent] = useState("");
   const { toast } = useToast();
+  const uid = user?.uid;
 
-  const goalsQuery = user ? query(
-    collection(db, 'users', user.uid, 'goals')
-  ) : null;
+  useEffect(() => {
+    if (editingGoal) {
+      setEditingCategory(editingGoal.category);
+      setEditingLimit(editingGoal.monthlyLimit.toString());
+      setEditingSpent(editingGoal.currentSpent.toString());
+    }
+  }, [editingGoal]);
 
-  const { data: goals, loading } = useCollection<any>(goalsQuery);
+  const goalsQuery = useMemo(
+    () => (uid ? query(collection(db, 'users', uid, 'goals')) : null),
+    [db, uid]
+  );
+
+  const { data: goals, loading, error } = useCollection<BudgetGoal>(goalsQuery);
 
   const handleAddGoal = async () => {
-    if (!user || !newCat || !newLimit) return;
+    if (!user) return;
+
+    const category = newCat.trim();
+    const monthlyLimit = Number(newLimit);
+
+    if (!category || !Number.isFinite(monthlyLimit) || monthlyLimit <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Goal",
+        description: "Enter a category and a monthly limit greater than zero.",
+      });
+      return;
+    }
+
     try {
       await addDoc(collection(db, 'users', user.uid, 'goals'), {
-        category: newCat,
-        monthlyLimit: parseFloat(newLimit),
+        category,
+        monthlyLimit,
         currentSpent: 0
       });
       setIsAdding(false);
@@ -50,10 +79,11 @@ export default function GoalsPage() {
       setNewLimit("");
       toast({
         title: "Goal Established",
-        description: `Target for ${newCat} is now active.`,
+        description: `Target for ${category} is now active.`,
       });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Save Error", description: e.message });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ variant: "destructive", title: "Save Error", description: message });
     }
   };
 
@@ -62,8 +92,51 @@ export default function GoalsPage() {
     try {
       await deleteDoc(doc(db, 'users', user.uid, 'goals', id));
       toast({ title: "Removed", description: "Goal deleted." });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Error", description: e.message });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ variant: "destructive", title: "Error", description: message });
+    }
+  };
+
+  const handleOpenAdjust = (goal: BudgetGoal & { id: string }) => {
+    setEditingGoal(goal);
+    setIsEditing(true);
+  };
+
+  const handleUpdateGoal = async () => {
+    if (!user || !editingGoal) return;
+
+    const category = editingCategory.trim();
+    const monthlyLimit = Number(editingLimit);
+    const currentSpent = Number(editingSpent);
+
+    if (
+      !category ||
+      !Number.isFinite(monthlyLimit) ||
+      monthlyLimit <= 0 ||
+      !Number.isFinite(currentSpent) ||
+      currentSpent < 0
+    ) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Goal",
+        description: "Enter a category, a limit greater than zero, and spent amount of zero or more.",
+      });
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'users', user.uid, 'goals', editingGoal.id), {
+        category,
+        monthlyLimit,
+        currentSpent,
+      });
+      toast({ title: "Goal Updated", description: `Budget goal for ${category} has been adjusted.` });
+      setIsEditing(false);
+      setEditingGoal(null);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ variant: "destructive", title: "Update Failed", description: message });
     }
   };
 
@@ -122,6 +195,11 @@ export default function GoalsPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {[1, 2, 3].map(i => <Skeleton key={i} className="h-64 rounded-3xl" />)}
         </div>
+      ) : error ? (
+        <div className="col-span-full rounded-3xl border border-destructive/20 bg-destructive/10 p-8 text-destructive">
+          <h2 className="text-xl font-bold mb-2">Unable to load goals</h2>
+          <p>{error.message || 'Permission denied while reading your budget goals.'}</p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {goals?.map((budget) => {
@@ -169,7 +247,7 @@ export default function GoalsPage() {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button variant="ghost" className="flex-1 rounded-xl py-6 border border-white/5 hover:bg-white/5 font-bold font-headline text-xs uppercase tracking-widest transition-all">
+                  <Button variant="ghost" onClick={() => handleOpenAdjust(budget)} className="flex-1 rounded-xl py-6 border border-white/5 hover:bg-white/5 font-bold font-headline text-xs uppercase tracking-widest transition-all">
                     ADJUST
                   </Button>
                   <Button variant="ghost" size="icon" onClick={() => handleDelete(budget.id)} className="rounded-xl h-12 w-12 text-muted-foreground hover:text-destructive">
@@ -192,6 +270,57 @@ export default function GoalsPage() {
           )}
         </div>
       )}
+      <Dialog open={isEditing} onOpenChange={(open) => {
+        if (!open) {
+          setIsEditing(false);
+          setEditingGoal(null);
+        }
+      }}>
+        <DialogContent className="glass-card border-white/10 sm:max-w-[500px] p-8">
+          <DialogHeader>
+            <DialogTitle className="font-headline text-3xl font-bold mb-2">Adjust Goal</DialogTitle>
+            <DialogDescription>Update the selected budget goal details.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-6 py-4">
+            <div className="grid gap-3">
+              <Label htmlFor="edit-category">Category</Label>
+              <Input
+                id="edit-category"
+                value={editingCategory}
+                onChange={(e) => setEditingCategory(e.target.value)}
+                className="bg-muted border-none h-12 rounded-xl"
+              />
+            </div>
+            <div className="grid gap-3">
+              <Label htmlFor="edit-limit">Monthly Limit</Label>
+              <Input
+                id="edit-limit"
+                type="number"
+                value={editingLimit}
+                onChange={(e) => setEditingLimit(e.target.value)}
+                className="bg-muted border-none h-12 rounded-xl"
+              />
+            </div>
+            <div className="grid gap-3">
+              <Label htmlFor="edit-spent">Current Spent</Label>
+              <Input
+                id="edit-spent"
+                type="number"
+                value={editingSpent}
+                onChange={(e) => setEditingSpent(e.target.value)}
+                className="bg-muted border-none h-12 rounded-xl"
+              />
+            </div>
+          </div>
+          <DialogFooter className="pt-4">
+            <Button variant="ghost" onClick={() => {
+              setIsEditing(false);
+              setEditingGoal(null);
+            }} className="rounded-xl">Cancel</Button>
+            <Button onClick={handleUpdateGoal} className="bg-primary text-primary-foreground px-8 font-bold font-headline h-12 rounded-xl">SAVE CHANGES</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
