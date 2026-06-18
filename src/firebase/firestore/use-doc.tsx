@@ -34,14 +34,14 @@ export function useDoc<T = DocumentData>(ref: DocumentReference<T> | null) {
           setLoading(false);
         },
         (err) => {
-          console.error('Firestore doc error:', err);
-          setError(err instanceof Error ? err : new Error(String(err)));
+          console.error('Firestore doc error:', err.code ?? 'unknown');
+          setError(err instanceof Error ? err : new Error('Doc fetch failed'));
           setLoading(false);
         }
       );
     } catch (err) {
-      console.error('Firestore doc subscription failed:', err);
-      setError(err instanceof Error ? err : new Error(String(err)));
+      console.error('Firestore doc subscription failed');
+      setError(err instanceof Error ? err : new Error('Doc subscription failed'));
       setLoading(false);
     }
 

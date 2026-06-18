@@ -10,25 +10,31 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
+const MAX_TRANSACTIONS_PER_ANALYSIS = 250;
+const MAX_GOALS_PER_ANALYSIS = 100;
+const MAX_DESCRIPTION_LENGTH = 160;
+const MAX_CATEGORY_LENGTH = 80;
+const MAX_MONEY_AMOUNT = 100000000;
+
 /**
  * Input schema for the AI spending insights flow.
  */
 const AISpendingInsightsInputSchema = z.object({
   transactions: z.array(
     z.object({
-      date: z.string().describe('Date of the transaction in YYYY-MM-DD format.'),
-      description: z.string().describe('Description of the transaction.'),
-      amount: z.number().positive().describe('Amount of the transaction.'),
-      category: z.string().describe('Category of the transaction.'),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('Date of the transaction in YYYY-MM-DD format.'),
+      description: z.string().trim().min(1).max(MAX_DESCRIPTION_LENGTH).describe('Description of the transaction.'),
+      amount: z.number().positive().max(MAX_MONEY_AMOUNT).describe('Amount of the transaction.'),
+      category: z.string().trim().min(1).max(MAX_CATEGORY_LENGTH).describe('Category of the transaction.'),
     })
-  ).describe('List of user transactions to be analyzed.'),
+  ).max(MAX_TRANSACTIONS_PER_ANALYSIS).describe('List of user transactions to be analyzed.'),
   budgetGoals: z.array(
     z.object({
-      category: z.string().describe('Category for the budget goal.'),
-      monthlyLimit: z.number().positive().describe('Monthly budget limit for the category.'),
+      category: z.string().trim().min(1).max(MAX_CATEGORY_LENGTH).describe('Category for the budget goal.'),
+      monthlyLimit: z.number().positive().max(MAX_MONEY_AMOUNT).describe('Monthly budget limit for the category.'),
     })
-  ).optional().describe('Optional list of user-defined monthly budget goals.'),
-  summaryPeriod: z.string().describe('The period for which the spending data is summarized (e.g., "last month", "last 3 months", "this quarter").'),
+  ).max(MAX_GOALS_PER_ANALYSIS).optional().describe('Optional list of user-defined monthly budget goals.'),
+  summaryPeriod: z.enum(['last month', 'this month', 'last 3 months', 'all time']).describe('The period for which the spending data is summarized.'),
 });
 export type AISpendingInsightsInput = z.infer<typeof AISpendingInsightsInputSchema>;
 
@@ -36,16 +42,16 @@ export type AISpendingInsightsInput = z.infer<typeof AISpendingInsightsInputSche
  * Output schema for the AI spending insights flow.
  */
 const AISpendingInsightsOutputSchema = z.object({
-  overallInsights: z.string().describe('A general summary of spending patterns for the given period, highlighting key trends.'),
+  overallInsights: z.string().max(2000).describe('A general summary of spending patterns for the given period, highlighting key trends.'),
   categoryInsights: z.array(
     z.object({
-      category: z.string().describe('The spending category.'),
-      analysis: z.string().describe('Analysis of spending behavior in this category, comparing against budget goals if provided.').optional(),
-      recommendations: z.array(z.string()).describe('Actionable recommendations for optimizing spending in this category.'),
+      category: z.string().max(MAX_CATEGORY_LENGTH).describe('The spending category.'),
+      analysis: z.string().max(1200).describe('Analysis of spending behavior in this category, comparing against budget goals if provided.').optional(),
+      recommendations: z.array(z.string().max(300)).max(5).describe('Actionable recommendations for optimizing spending in this category.'),
     })
-  ).describe('Detailed insights and recommendations for each spending category.'),
-  anomaliesDetected: z.array(z.string()).describe('List of unusual transactions or spending spikes detected, with brief explanations.'),
-  budgetOptimizationTips: z.array(z.string()).describe('General tips and strategies for saving money and improving financial health.'),
+  ).max(20).describe('Detailed insights and recommendations for each spending category.'),
+  anomaliesDetected: z.array(z.string().max(300)).max(20).describe('List of unusual transactions or spending spikes detected, with brief explanations.'),
+  budgetOptimizationTips: z.array(z.string().max(300)).max(8).describe('General tips and strategies for saving money and improving financial health.'),
 });
 export type AISpendingInsightsOutput = z.infer<typeof AISpendingInsightsOutputSchema>;
 
@@ -81,7 +87,7 @@ Budget Goals:
 {{/each}}
 {{/if}}
 
-Please provide a comprehensive analysis structured to match the output schema:
+Please provide a concise analysis structured to match the output schema:
 
 1.  **Overall Insights**: A general summary of spending patterns for the {{summaryPeriod}}.
 2.  **Category Insights**: For each spending category, provide an 'analysis' and 2-3 'recommendations'.

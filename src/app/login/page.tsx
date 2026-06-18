@@ -29,23 +29,36 @@ export default function LoginPage() {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth) return;
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!isLogin && password.length < 8) {
+      toast({
+        variant: "destructive",
+        title: "Password Too Short",
+        description: "Use at least 8 characters for new accounts.",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
       if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
+        await signInWithEmailAndPassword(auth, normalizedEmail, password);
         toast({ title: "Welcome back!", description: "Successfully logged in." });
       } else {
-        await createUserWithEmailAndPassword(auth, email, password);
+        await createUserWithEmailAndPassword(auth, normalizedEmail, password);
         toast({ title: "Account created", description: "Welcome to Lumina!" });
       }
       router.push('/');
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      console.error(error);
       toast({
         variant: "destructive",
         title: "Authentication Error",
-        description: message,
+        description: isLogin
+          ? "Check your email and password, then try again."
+          : "We could not create that account. Try a different email or stronger password.",
       });
     } finally {
       setLoading(false);
@@ -60,11 +73,11 @@ export default function LoginPage() {
       toast({ title: "Welcome!", description: "Successfully logged in with Google." });
       router.push('/');
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      console.error(error);
       toast({
         variant: "destructive",
         title: "Google Sign-In Error",
-        description: message,
+        description: "Google sign-in did not complete. Please try again.",
       });
     }
   };
@@ -115,6 +128,7 @@ export default function LoginPage() {
                     className="pl-10 bg-muted/30 border-none"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    minLength={isLogin ? undefined : 8}
                     required
                   />
                 </div>

@@ -10,9 +10,15 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
+const MAX_DESCRIPTION_LENGTH = 160;
+const MAX_CATEGORY_LENGTH = 80;
+
 const TransactionCategorizationInputSchema = z.object({
   transactionDescription: z
     .string()
+    .trim()
+    .min(1)
+    .max(MAX_DESCRIPTION_LENGTH)
     .describe('The description of the transaction, typically from a bank statement or merchant.'),
 });
 export type TransactionCategorizationInput = z.infer<
@@ -22,6 +28,9 @@ export type TransactionCategorizationInput = z.infer<
 const TransactionCategorizationOutputSchema = z.object({
   category: z
     .string()
+    .trim()
+    .min(1)
+    .max(MAX_CATEGORY_LENGTH)
     .describe(
       'The most appropriate spending category for the transaction (e.g., "Groceries", "Utilities", "Transportation", "Dining", "Shopping", "Rent", "Entertainment", "Salary", "Investment"). If no existing category fits, create a new relevant category name.'
     ),

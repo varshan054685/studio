@@ -1,19 +1,77 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow users to read and write only their own data
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function validProfile() {
+      return request.resource.data.keys().hasOnly(['username', 'phoneCode', 'phoneNumber'])
+        && request.resource.data.username is string
+        && request.resource.data.username.size() <= 40
+        && request.resource.data.phoneCode is string
+        && request.resource.data.phoneCode.matches('^\\+[0-9]{1,4}$')
+        && request.resource.data.phoneNumber is string
+        && request.resource.data.phoneNumber.size() <= 20;
+    }
+
+    function validTransaction() {
+      return request.resource.data.keys().hasOnly(['date', 'description', 'amount', 'category', 'createdAt'])
+        && request.resource.data.date is string
+        && request.resource.data.date.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && request.resource.data.description is string
+        && request.resource.data.description.size() > 0
+        && request.resource.data.description.size() <= 160
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 100000000
+        && request.resource.data.category is string
+        && request.resource.data.category.size() > 0
+        && request.resource.data.category.size() <= 80
+        && request.resource.data.createdAt is string
+        && request.resource.data.createdAt.size() <= 40;
+    }
+
+    function validGoal() {
+      return request.resource.data.keys().hasOnly(['category', 'monthlyLimit', 'currentSpent'])
+        && request.resource.data.category is string
+        && request.resource.data.category.size() > 0
+        && request.resource.data.category.size() <= 80
+        && request.resource.data.monthlyLimit is number
+        && request.resource.data.monthlyLimit > 0
+        && request.resource.data.monthlyLimit <= 100000000
+        && request.resource.data.currentSpent is number
+        && request.resource.data.currentSpent >= 0
+        && request.resource.data.currentSpent <= 100000000;
+    }
+
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      
-      // Recursively allow access to all subcollections under the user document
-      match /{allSubcollections=**} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isOwner(userId);
+      allow write: if false;
+
+      match /profile/{profileDoc} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && profileDoc == 'info'
+          && validProfile();
+        allow delete: if isOwner(userId) && profileDoc == 'info';
+      }
+
+      match /transactions/{transactionId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validTransaction();
+        allow delete: if isOwner(userId);
+      }
+
+      match /goals/{goalId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validGoal();
+        allow delete: if isOwner(userId);
       }
     }
-    
-    // Fallback for other paths - required for some internal Firebase operations
+
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if false;
     }
   }
 }

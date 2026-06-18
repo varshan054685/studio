@@ -37,14 +37,14 @@ export function useCollection<T extends object = DocumentData>(query: Query<Docu
           setLoading(false);
         },
         (err) => {
-          console.error('Firestore collection error:', err);
-          setError(err instanceof Error ? err : new Error(String(err)));
+          console.error('Firestore collection error:', err.code ?? 'unknown');
+          setError(err instanceof Error ? err : new Error('Collection fetch failed'));
           setLoading(false);
         }
       );
     } catch (err) {
-      console.error('Firestore collection subscription failed:', err);
-      setError(err instanceof Error ? err : new Error(String(err)));
+      console.error('Firestore collection subscription failed');
+      setError(err instanceof Error ? err : new Error('Collection subscription failed'));
       setLoading(false);
     }
 

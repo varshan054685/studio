@@ -1,28 +1,30 @@
 "use client";
 
 import { useState, useEffect, useMemo, type ChangeEvent } from "react";
-import { useUser, useAuth, useFirestore, useFirebaseApp } from "@/firebase";
+import { useUser, useAuth, useFirestore, useFirebaseApp, useCollection } from "@/firebase";
 import { useDoc } from "@/firebase/firestore/use-doc";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
-import { User, Mail, Shield, Zap, LogOut, ChevronRight, Camera, Phone, AtSign, Eye, EyeOff, Lock, Save } from "lucide-react";
+import {
+  User, Mail, Shield, Zap, LogOut, ChevronRight, Crown, Share2, Bell, Globe, Coins,
+  Lock, Smartphone, Calendar, CheckCircle2, Camera, AtSign, Phone, Eye, EyeOff, Save, Loader2,
+} from "lucide-react";
 import { signOut, updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
-import { doc, setDoc, DocumentReference } from "firebase/firestore";
+import { doc, setDoc, collection, query, DocumentReference } from "firebase/firestore";
 import { getDownloadURL, getStorage, ref as storageRef, uploadBytes } from "firebase/storage";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
+import { Transaction, BudgetGoal } from "@/app/lib/types";
 
 interface UserProfile {
   username: string;
@@ -37,7 +39,9 @@ export default function ProfilePage() {
   const firebaseApp = useFirebaseApp();
   const router = useRouter();
   const { toast } = useToast();
+
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [photoURL, setPhotoURL] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -49,16 +53,29 @@ export default function ProfilePage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
 
-  // Firestore profile document reference
-  const profileRef = useMemo(
-    () => (user?.uid ? doc(db, 'users', user.uid, 'profile', 'info') as DocumentReference<UserProfile> : null),
-    [db, user?.uid]
+  const uid = user?.uid;
+  const storage = useMemo(
+    () => getStorage(firebaseApp, `gs://${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}`),
+    [firebaseApp]
   );
-  const storage = useMemo(() => getStorage(firebaseApp), [firebaseApp]);
+
+  const profileRef = useMemo(
+    () => (uid ? doc(db, "users", uid, "profile", "info") as DocumentReference<UserProfile> : null),
+    [db, uid]
+  );
+  const transactionsQuery = useMemo(
+    () => (uid ? query(collection(db, "users", uid, "transactions")) : null),
+    [db, uid]
+  );
+  const goalsQuery = useMemo(
+    () => (uid ? query(collection(db, "users", uid, "goals")) : null),
+    [db, uid]
+  );
 
   const { data: profileData } = useDoc<UserProfile>(profileRef);
+  const { data: transactions } = useCollection<Transaction>(transactionsQuery);
+  const { data: goals } = useCollection<BudgetGoal>(goalsQuery);
 
   useEffect(() => {
     setDisplayName(user?.displayName ?? "");
@@ -66,15 +83,10 @@ export default function ProfilePage() {
   }, [user]);
 
   useEffect(() => {
-    if (!avatarFile) {
-      setAvatarPreviewURL("");
-      return;
-    }
-
-    const previewURL = URL.createObjectURL(avatarFile);
-    setAvatarPreviewURL(previewURL);
-
-    return () => URL.revokeObjectURL(previewURL);
+    if (!avatarFile) return;
+    const url = URL.createObjectURL(avatarFile);
+    setAvatarPreviewURL(url);
+    return () => URL.revokeObjectURL(url);
   }, [avatarFile]);
 
   useEffect(() => {
@@ -85,40 +97,60 @@ export default function ProfilePage() {
     }
   }, [profileData]);
 
-  const currentDisplayName = displayName || user?.displayName || user?.email?.split('@')[0] || "Anonymous";
+  const sanitize = (str: string) => str.replace(/[<>"'`]/g, "");
+  const currentDisplayName = sanitize(displayName || user?.displayName || user?.email?.split("@")[0] || "Anonymous");
   const currentPhotoURL = avatarPreviewURL || photoURL || user?.photoURL || undefined;
-  const currentUsername = username || profileData?.username || "";
-  const currentPhone = profileData?.phoneNumber ? `${profileData.phoneCode || '+91'} ${profileData.phoneNumber}` : "";
-  const fallbackPhotoURL = `https://picsum.photos/seed/${user?.uid || 'lumina'}/200/200`;
+  const currentUsername = sanitize(username || profileData?.username || "");
+  const currentPhone = profileData?.phoneNumber ? `${profileData.phoneCode || "+91"} ${profileData.phoneNumber}` : "";
+  const safeUid = uid?.replace(/[^a-zA-Z0-9]/g, "") || "lumina";
+  const fallbackPhotoURL = `https://picsum.photos/seed/${safeUid}/200/200`;
+  const memberSince = user?.metadata.creationTime
+    ? new Date(user.metadata.creationTime).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+    : "Recently";
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
       toast({ title: "Logged out", description: "Safe travels!" });
-      router.push('/login');
+      router.push("/login");
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      toast({ variant: "destructive", title: "Error", description: message });
+      toast({ variant: "destructive", title: "Error", description: e instanceof Error ? e.message : String(e) });
     }
   };
 
-  const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleAvatarChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
-
     if (!file.type.startsWith("image/")) {
-      toast({ variant: "destructive", title: "Invalid Image", description: "Choose an image file for your profile photo." });
-      event.target.value = "";
+      toast({ variant: "destructive", title: "Invalid Image", description: "Choose an image file." });
       return;
     }
-
     if (file.size > 5 * 1024 * 1024) {
-      toast({ variant: "destructive", title: "Image Too Large", description: "Choose an image under 5 MB." });
-      event.target.value = "";
+      toast({ variant: "destructive", title: "Too Large", description: "Choose an image under 5MB." });
       return;
     }
-
-    setAvatarFile(file);
+    // Compress image before storing to make upload fast
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const MAX = 400;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) { setAvatarFile(file); return; }
+          const compressed = new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" });
+          setAvatarFile(compressed);
+        },
+        "image/jpeg",
+        0.8
+      );
+    };
+    img.src = objectUrl;
   };
 
   const handleSaveProfile = async () => {
@@ -126,395 +158,437 @@ export default function ProfilePage() {
     setIsSaving(true);
     try {
       let nextPhotoURL = photoURL.trim() || user.photoURL || null;
-
       if (avatarFile) {
-        const extension = avatarFile.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-        const avatarRef = storageRef(storage, `users/${user.uid}/profile/avatar-${Date.now()}.${extension}`);
-        const uploadResult = await uploadBytes(avatarRef, avatarFile, { contentType: avatarFile.type });
-        nextPhotoURL = await getDownloadURL(uploadResult.ref);
+        const ext = avatarFile.name.split(".").pop()?.toLowerCase() || "jpg";
+        const ref = storageRef(storage, `users/${user.uid}/profile/avatar-${Date.now()}.${ext}`);
+        const result = await uploadBytes(ref, avatarFile, { contentType: avatarFile.type });
+        nextPhotoURL = await getDownloadURL(result.ref);
       }
-
-      // Update Firebase Auth profile
-      await updateProfile(user, {
-        displayName: displayName.trim() || null,
-        photoURL: nextPhotoURL,
-      });
-
-      // Save extra fields to Firestore
-      const profileDocRef = doc(db, 'users', user.uid, 'profile', 'info');
-      await setDoc(profileDocRef, {
-        username: username.trim(),
-        phoneCode: phoneCode,
-        phoneNumber: phoneNumber.trim(),
+      await updateProfile(user, { displayName: sanitize(displayName.trim()) || null, photoURL: nextPhotoURL });
+      await setDoc(doc(db, "users", user.uid, "profile", "info"), {
+        username: sanitize(username.trim()), phoneCode, phoneNumber: phoneNumber.trim(),
       }, { merge: true });
-
-      // Handle password change if provided
       if (newPassword.trim()) {
-        if (user.providerData[0]?.providerId === 'password') {
+        if (user.providerData[0]?.providerId === "password") {
           if (!currentPassword.trim()) {
-            toast({ variant: "destructive", title: "Current Password Required", description: "Enter your current password to set a new one." });
+            toast({ variant: "destructive", title: "Current Password Required", description: "Enter your current password." });
             setIsSaving(false);
             return;
           }
-          const credential = EmailAuthProvider.credential(user.email!, currentPassword);
-          await reauthenticateWithCredential(user, credential);
+          await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email!, currentPassword));
         }
         await updatePassword(user, newPassword.trim());
-        toast({ title: "Password Updated", description: "Your password has been changed successfully." });
       }
-
-      toast({ title: "Profile Updated", description: "Your account details are now current." });
+      toast({ title: "Profile Updated", description: "Your details are now current." });
+      // Update photoURL state first so currentPhotoURL reflects the new value
+      // before avatarFile is cleared (which revokes the blob preview)
       setPhotoURL(nextPhotoURL ?? "");
       setAvatarFile(null);
-      setNewPassword("");
-      setCurrentPassword("");
+      setAvatarPreviewURL("");
+      setNewPassword(""); setCurrentPassword("");
       setIsEditing(false);
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      toast({ variant: "destructive", title: "Update Failed", description: message });
+      toast({ variant: "destructive", title: "Update Failed", description: e instanceof Error ? e.message : String(e) });
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <div className="p-4 md:p-8 lg:p-12 max-w-5xl mx-auto w-full space-y-12">
-      <header>
-        <h1 className="text-4xl md:text-5xl font-headline font-bold text-foreground mb-2">Account</h1>
-        <p className="text-muted-foreground text-lg">Manage your identity and Lumina settings.</p>
+    <div className="p-4 md:p-8 lg:p-12 max-w-6xl mx-auto w-full space-y-10">
+
+      {/* Header */}
+      <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-4xl md:text-5xl font-headline font-bold text-foreground mb-1">Account</h1>
+          <p className="text-muted-foreground text-lg">Manage your identity and Lumina settings.</p>
+        </div>
+        <Badge variant="outline" className="w-fit h-fit px-4 py-1.5 rounded-full border-primary/20 bg-primary/5 text-primary flex items-center gap-2 text-xs font-bold">
+          <Calendar className="h-3.5 w-3.5" /> Member since {memberSince}
+        </Badge>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Brief Profile */}
-        <div className="space-y-6">
-          <Card className="p-8 glass-card border-white/5 flex flex-col items-center text-center space-y-6">
-            <div className="relative group">
-              <Avatar className="h-32 w-32 border-4 border-primary/20 shadow-2xl">
-                <AvatarImage src={currentPhotoURL || fallbackPhotoURL} />
-                <AvatarFallback className="text-4xl bg-primary/10 text-primary">{user?.email?.[0].toUpperCase()}</AvatarFallback>
-              </Avatar>
-              <button
-                onClick={() => setIsEditing(true)}
-                className="absolute bottom-1 right-1 h-9 w-9 rounded-full bg-muted/90 backdrop-blur-sm border-2 border-background flex items-center justify-center shadow-lg hover:bg-primary/20 hover:border-primary/40 transition-all duration-200 group-hover:scale-110"
-              >
-                <Camera className="h-4 w-4 text-foreground" />
-              </button>
-            </div>
-            <div>
-              <h2 className="text-2xl font-headline font-bold">{currentDisplayName}</h2>
-              {currentUsername && (
-                <p className="text-primary/80 text-sm flex items-center justify-center gap-1 mt-0.5">
-                  <AtSign className="h-3 w-3" />{currentUsername}
-                </p>
-              )}
-              <p className="text-muted-foreground text-sm flex items-center justify-center gap-1.5 mt-1">
-                <Mail className="h-3 w-3" /> {user?.email}
-              </p>
-              {currentPhone && (
-                <p className="text-muted-foreground text-sm flex items-center justify-center gap-1.5 mt-1">
-                  <Phone className="h-3 w-3" /> {currentPhone}
-                </p>
-              )}
-            </div>
-            <div className="w-full pt-6 border-t border-white/5 space-y-4">
-               <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-1">
-                 <span>Member Tier</span>
-                 <span className="text-primary bg-primary/10 px-2 py-0.5 rounded-full">Explorer</span>
-               </div>
-               <Button onClick={() => router.push('/pro')} className="w-full bg-primary text-primary-foreground font-bold font-headline h-12 rounded-xl group">
-                 UPGRADE TO ELITE <Zap className="ml-2 h-4 w-4 fill-current group-hover:scale-125 transition-transform" />
-               </Button>
-            </div>
-          </Card>
 
-          <Card className="p-6 glass-card border-white/5 space-y-4">
-            <h4 className="text-sm font-headline font-bold text-foreground uppercase tracking-wider">Quick Actions</h4>
-            <div className="space-y-1">
-              <Button variant="ghost" onClick={() => toast({ title: "Privacy Settings", description: "Privacy settings are coming soon." })} className="w-full justify-between h-12 rounded-xl hover:bg-white/5 text-muted-foreground hover:text-foreground group">
-                <span className="flex items-center gap-3"><Shield className="h-4 w-4" /> Privacy Settings</span>
-                <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-              </Button>
-              <Button variant="ghost" onClick={() => toast({ title: "Connected Apps", description: "Connected apps support is coming soon." })} className="w-full justify-between h-12 rounded-xl hover:bg-white/5 text-muted-foreground hover:text-foreground group">
-                <span className="flex items-center gap-3"><Zap className="h-4 w-4" /> Connected Apps</span>
-                <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-              </Button>
-            </div>
-          </Card>
-        </div>
+        {/* ── Left Column ── */}
+        <div className="space-y-5">
 
-        {/* Right Column: Detailed Settings */}
-        <div className="lg:col-span-2 space-y-8">
-          <Card className="p-8 glass-card border-white/5">
-            <h3 className="text-2xl font-headline font-bold mb-8 flex items-center gap-3">
-              <User className="h-6 w-6 text-primary" /> Profile Details
-            </h3>
-            
-            <div className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Full Name</p>
-                  <p className="text-lg font-medium p-4 bg-muted/30 rounded-2xl border border-white/5">{currentDisplayName || 'Set in Settings'}</p>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Username</p>
-                  <p className="text-lg font-medium p-4 bg-muted/30 rounded-2xl border border-white/5 flex items-center gap-2">
-                    {currentUsername ? (
-                      <><AtSign className="h-4 w-4 text-primary/60" />{currentUsername}</>
-                    ) : (
-                      <span className="text-muted-foreground italic">Not set</span>
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Email Address</p>
-                  <p className="text-lg font-medium p-4 bg-muted/30 rounded-2xl border border-white/5 flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-primary/60" /> {user?.email}
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Phone Number</p>
-                  <p className="text-lg font-medium p-4 bg-muted/30 rounded-2xl border border-white/5 flex items-center gap-2">
-                    {currentPhone ? (
-                      <><Phone className="h-4 w-4 text-primary/60" />{currentPhone}</>
-                    ) : (
-                      <span className="text-muted-foreground italic">Not set</span>
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Email Provider</p>
-                  <p className="text-lg font-medium p-4 bg-muted/30 rounded-2xl border border-white/5 flex items-center gap-2">
-                    {user?.providerData[0]?.providerId === 'google.com' ? 'Google Intelligence' : 'Email/Password'}
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Password</p>
-                  <p className="text-lg font-medium p-4 bg-muted/30 rounded-2xl border border-white/5 flex items-center gap-2">
-                    <Lock className="h-4 w-4 text-primary/60" />
-                    <span className="tracking-widest">••••••••••</span>
-                  </p>
-                </div>
-              </div>
-
-              <div className="pt-8 border-t border-white/5 flex flex-col sm:flex-row gap-4">
-                <Dialog open={isEditing} onOpenChange={(open) => {
-                  setIsEditing(open);
-                  if (!open) {
-                    setNewPassword("");
-                    setCurrentPassword("");
-                    setShowPassword(false);
-                    setShowNewPassword(false);
-                  }
-                }}>
-                  <DialogTrigger asChild>
-                    <Button className="flex-1 h-14 rounded-2xl bg-foreground text-background font-bold font-headline hover:bg-foreground/90">
-                      EDIT PROFILE
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="glass-card border-white/10 sm:max-w-[540px] p-8 max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle className="font-headline text-3xl font-bold mb-2">Edit Profile</DialogTitle>
-                      <DialogDescription>Update your personal information and account settings.</DialogDescription>
-                    </DialogHeader>
-
-                    {/* Avatar Preview */}
-                    <div className="flex justify-center py-4">
-                      <div className="flex flex-col items-center gap-3">
-                        <Label htmlFor="profile-photo" className="relative cursor-pointer group">
-                          <Avatar className="h-24 w-24 border-4 border-primary/20 shadow-xl">
-                            <AvatarImage src={currentPhotoURL || fallbackPhotoURL} />
-                            <AvatarFallback className="text-3xl bg-primary/10 text-primary">{user?.email?.[0].toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                          <span className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-muted/90 backdrop-blur-sm border-2 border-background flex items-center justify-center shadow-lg group-hover:bg-primary/20 group-hover:border-primary/40 transition-colors">
-                            <Camera className="h-3.5 w-3.5 text-foreground" />
-                          </span>
-                        </Label>
-                        <Input
-                          id="profile-photo"
-                          type="file"
-                          accept="image/*"
-                          onChange={handleAvatarChange}
-                          disabled={isSaving}
-                          className="sr-only"
-                        />
-                        <Label
-                          htmlFor="profile-photo"
-                          className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl bg-muted px-4 text-xs font-bold uppercase tracking-widest text-foreground hover:bg-muted/80 transition-colors"
-                        >
-                          Choose Photo
-                        </Label>
-                        {avatarFile && (
-                          <p className="max-w-[260px] truncate text-xs text-muted-foreground">{avatarFile.name}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="grid gap-5 py-2">
-                      {/* Name */}
-                      <div className="grid gap-2">
-                        <Label htmlFor="display-name" className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Name</Label>
-                        <Input
-                          id="display-name"
-                          value={displayName}
-                          onChange={(e) => setDisplayName(e.target.value)}
-                          placeholder="Charlotte King"
-                          className="bg-muted border-none h-12 rounded-xl"
-                        />
-                      </div>
-
-                      {/* Email (read-only) */}
-                      <div className="grid gap-2">
-                        <Label htmlFor="email-address" className="text-xs font-bold uppercase tracking-widest text-muted-foreground">E-mail Address</Label>
-                        <Input
-                          id="email-address"
-                          value={user?.email || ""}
-                          readOnly
-                          className="bg-muted/50 border-none h-12 rounded-xl text-muted-foreground cursor-not-allowed"
-                        />
-                      </div>
-
-                      {/* Username */}
-                      <div className="grid gap-2">
-                        <Label htmlFor="username" className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Username</Label>
-                        <div className="relative">
-                          <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            id="username"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            placeholder="johndoe"
-                            className="bg-muted border-none h-12 rounded-xl pl-10"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Password */}
-                      {user?.providerData[0]?.providerId !== 'google.com' && (
-                        <>
-                          <div className="grid gap-2">
-                            <Label htmlFor="current-password" className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Current Password</Label>
-                            <div className="relative">
-                              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                              <Input
-                                id="current-password"
-                                type={showPassword ? "text" : "password"}
-                                value={currentPassword}
-                                onChange={(e) => setCurrentPassword(e.target.value)}
-                                placeholder="••••••••••"
-                                className="bg-muted border-none h-12 rounded-xl pl-10 pr-12"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                              >
-                                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                              </button>
-                            </div>
-                          </div>
-                          <div className="grid gap-2">
-                            <Label htmlFor="new-password" className="text-xs font-bold uppercase tracking-widest text-muted-foreground">New Password</Label>
-                            <div className="relative">
-                              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                              <Input
-                                id="new-password"
-                                type={showNewPassword ? "text" : "password"}
-                                value={newPassword}
-                                onChange={(e) => setNewPassword(e.target.value)}
-                                placeholder="Leave blank to keep current"
-                                className="bg-muted border-none h-12 rounded-xl pl-10 pr-12"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setShowNewPassword(!showNewPassword)}
-                                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                              >
-                                {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                              </button>
-                            </div>
-                          </div>
-                        </>
-                      )}
-
-                      {/* Phone Number */}
-                      <div className="grid gap-2">
-                        <Label htmlFor="phone-number" className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Phone Number</Label>
-                        <div className="flex gap-2">
-                          <select
-                            value={phoneCode}
-                            onChange={(e) => setPhoneCode(e.target.value)}
-                            className="bg-muted border-none h-12 rounded-xl px-3 text-sm font-medium appearance-none cursor-pointer text-foreground min-w-[80px] focus:outline-none focus:ring-2 focus:ring-primary/40"
-                          >
-                            <option value="+91">+91</option>
-                            <option value="+1">+1</option>
-                            <option value="+44">+44</option>
-                            <option value="+61">+61</option>
-                            <option value="+81">+81</option>
-                            <option value="+86">+86</option>
-                            <option value="+49">+49</option>
-                            <option value="+33">+33</option>
-                            <option value="+971">+971</option>
-                            <option value="+65">+65</option>
-                          </select>
-                          <Input
-                            id="phone-number"
-                            value={phoneNumber}
-                            onChange={(e) => setPhoneNumber(e.target.value.replace(/[^0-9]/g, ''))}
-                            placeholder="9876543210"
-                            className="bg-muted border-none h-12 rounded-xl flex-1"
-                            maxLength={15}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <DialogFooter className="pt-4 gap-2">
-                      <Button variant="ghost" onClick={() => setIsEditing(false)} className="rounded-xl">Cancel</Button>
-                      <Button
-                        onClick={handleSaveProfile}
-                        disabled={isSaving}
-                        className="bg-primary text-primary-foreground px-8 font-bold font-headline h-12 rounded-xl gap-2"
-                      >
-                        {isSaving ? (
-                          <span className="flex items-center gap-2">
-                            <span className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                            SAVING...
-                          </span>
-                        ) : (
-                          <><Save className="h-4 w-4" /> SAVE CHANGES</>
-                        )}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-                <Button 
-                  onClick={handleLogout}
-                  variant="destructive" 
-                  className="flex-1 h-14 rounded-2xl gap-2 font-headline font-bold text-lg shadow-lg shadow-destructive/10"
+          {/* Profile Card */}
+          <Card className="overflow-hidden glass-card border-white/5 relative">
+            {/* hero gradient */}
+            <div className="h-24 bg-gradient-to-br from-primary/30 via-accent/20 to-transparent w-full" />
+            <div className="px-8 pb-8 -mt-14 flex flex-col items-center text-center space-y-4">
+              <div className="relative group">
+                <Avatar className="h-28 w-28 border-4 border-background shadow-2xl ring-2 ring-primary/30">
+                  <AvatarImage src={currentPhotoURL || fallbackPhotoURL} />
+                  <AvatarFallback className="text-3xl bg-primary/10 text-primary font-headline">
+                    {user?.email?.[0].toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="absolute bottom-1 right-1 h-8 w-8 rounded-full bg-card/95 border border-white/10 flex items-center justify-center shadow-lg hover:bg-primary/20 hover:border-primary/40 transition-all group-hover:scale-110"
                 >
-                  <LogOut className="h-5 w-5" /> LOG OUT
+                  <Camera className="h-3.5 w-3.5 text-foreground" />
+                </button>
+              </div>
+
+              <div>
+                <h2 className="text-xl font-headline font-bold">{currentDisplayName}</h2>
+                {currentUsername && (
+                  <p className="text-primary/70 text-sm flex items-center justify-center gap-1 mt-0.5">
+                    <AtSign className="h-3 w-3" />{currentUsername}
+                  </p>
+                )}
+                <p className="text-muted-foreground text-xs flex items-center justify-center gap-1.5 mt-1">
+                  <Mail className="h-3 w-3" />{user?.email}
+                </p>
+                {currentPhone && (
+                  <p className="text-muted-foreground text-xs flex items-center justify-center gap-1.5 mt-0.5">
+                    <Phone className="h-3 w-3" />{currentPhone}
+                  </p>
+                )}
+              </div>
+
+              <div className="w-full pt-5 border-t border-white/5 space-y-3">
+                <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-1">
+                  <span className="flex items-center gap-1.5"><Crown className="h-3 w-3" />Member Tier</span>
+                  <span className="text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">Explorer</span>
+                </div>
+                <Button
+                  onClick={() => router.push("/pro")}
+                  className="w-full h-11 rounded-xl bg-gradient-to-r from-primary to-accent text-primary-foreground font-bold font-headline text-sm group border-none shadow-lg shadow-primary/20"
+                >
+                  UPGRADE TO ELITE <Zap className="ml-2 h-3.5 w-3.5 fill-current group-hover:scale-125 transition-transform" />
                 </Button>
               </div>
             </div>
           </Card>
 
-          <Card className="p-8 glass-card border-primary/20 bg-primary/5 overflow-hidden relative">
-            <div className="relative z-10 space-y-4">
-              <h3 className="text-2xl font-headline font-bold text-primary">Need Financial Advice?</h3>
-              <p className="text-muted-foreground max-w-md">Our premium AI agents can help you optimize your portfolio and plan for early retirement.</p>
-              <Button variant="outline" className="rounded-xl border-primary/30 hover:bg-primary/10" onClick={() => router.push('/pro')}>
-                TALK TO ELITE AI
-              </Button>
+          {/* Stats */}
+          <Card className="p-5 glass-card border-white/5">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-4">Statistics</p>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { value: transactions?.length || 0, label: "Transactions" },
+                { value: goals?.length || 0, label: "Active Goals" },
+              ].map(({ value, label }) => (
+                <div key={label} className="bg-muted/30 p-4 rounded-2xl border border-white/5 text-center">
+                  <p className="text-2xl font-headline font-bold text-primary">{value}</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5">{label}</p>
+                </div>
+              ))}
             </div>
-            <Zap className="absolute -bottom-10 -right-10 h-48 w-48 text-primary/5 pointer-events-none" />
+          </Card>
+
+          {/* Quick Actions */}
+          <Card className="p-5 glass-card border-white/5">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Quick Actions</p>
+            <div className="space-y-0.5">
+              {[
+                { icon: Shield, label: "Privacy Settings" },
+                { icon: Share2, label: "Share Progress" },
+              ].map(({ icon: Icon, label }) => (
+                <Button
+                  key={label}
+                  variant="ghost"
+                  onClick={() => toast({ title: label, description: "Coming soon." })}
+                  className="w-full justify-between h-11 rounded-xl hover:bg-white/5 text-muted-foreground hover:text-foreground group"
+                >
+                  <span className="flex items-center gap-3 text-sm"><Icon className="h-4 w-4" />{label}</span>
+                  <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              ))}
+            </div>
           </Card>
         </div>
+
+        {/* ── Right Column ── */}
+        <div className="lg:col-span-2">
+          <Tabs defaultValue="profile" className="w-full">
+            <TabsList className="w-full justify-start bg-muted/20 p-1 h-auto rounded-2xl border border-white/5 mb-7">
+              {["profile", "security", "preferences"].map((tab) => (
+                <TabsTrigger
+                  key={tab}
+                  value={tab}
+                  className="rounded-xl px-6 py-2.5 capitalize text-sm font-medium data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+                >
+                  {tab}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+
+            {/* ── Profile Tab ── */}
+            <TabsContent value="profile" className="space-y-6 animate-in fade-in duration-500">
+              <Card className="p-7 glass-card border-white/5">
+                <h3 className="text-xl font-headline font-bold mb-6 flex items-center gap-2.5">
+                  <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <User className="h-4 w-4 text-primary" />
+                  </div>
+                  Profile Details
+                </h3>
+
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[
+                      { label: "Full Name", value: currentDisplayName || "Set in Settings", icon: User },
+                      { label: "Username", value: currentUsername || "Not set", icon: AtSign, muted: !currentUsername },
+                      { label: "Email Address", value: user?.email || "", icon: Mail },
+                      { label: "Phone", value: currentPhone || "Not set", icon: Phone, muted: !currentPhone },
+                    ].map(({ label, value, icon: Icon, muted }) => (
+                      <div key={label} className="space-y-1.5">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.18em]">{label}</p>
+                        <div className={`flex items-center gap-2.5 p-3.5 bg-muted/30 rounded-xl border border-white/5 ${muted ? "text-muted-foreground italic" : "font-medium"}`}>
+                          <Icon className="h-3.5 w-3.5 text-primary/50 shrink-0" />
+                          <span className="text-sm truncate">{value}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Account UID hidden for privacy */}
+
+                  <div className="pt-5 border-t border-white/5 flex flex-col sm:flex-row gap-3">
+                    <Dialog open={isEditing} onOpenChange={(open) => {
+                      setIsEditing(open);
+                      if (!open) { setNewPassword(""); setCurrentPassword(""); setShowPassword(false); setShowNewPassword(false); }
+                    }}>
+                      <DialogTrigger asChild>
+                        <Button className="flex-1 h-12 rounded-xl bg-foreground text-background font-bold font-headline hover:bg-foreground/90 transition-all active:scale-[0.98]">
+                          EDIT PROFILE
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="glass-card border-white/10 sm:max-w-[520px] p-8 max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle className="font-headline text-2xl font-bold">Edit Profile</DialogTitle>
+                          <DialogDescription>Update your personal information and account settings.</DialogDescription>
+                        </DialogHeader>
+
+                        <div className="flex justify-center py-5">
+                          <div className="flex flex-col items-center gap-3">
+                            <Label htmlFor="profile-photo" className="relative cursor-pointer group">
+                              <Avatar className="h-20 w-20 border-4 border-primary/20 shadow-xl">
+                                <AvatarImage src={currentPhotoURL || fallbackPhotoURL} />
+                                <AvatarFallback className="text-2xl bg-primary/10 text-primary">{user?.email?.[0].toUpperCase()}</AvatarFallback>
+                              </Avatar>
+                              <span className="absolute bottom-0 right-0 h-7 w-7 rounded-full bg-card/95 border border-white/10 flex items-center justify-center shadow-lg group-hover:bg-primary/20 transition-colors">
+                                <Camera className="h-3 w-3 text-foreground" />
+                              </span>
+                            </Label>
+                            <Input id="profile-photo" type="file" accept="image/*" onChange={handleAvatarChange} disabled={isSaving} className="sr-only" />
+                            <Label htmlFor="profile-photo" className="inline-flex h-9 cursor-pointer items-center justify-center rounded-xl bg-muted px-4 text-xs font-bold uppercase tracking-widest hover:bg-muted/80 transition-colors">
+                              Choose Photo
+                            </Label>
+                            {avatarFile && <p className="max-w-[240px] truncate text-xs text-muted-foreground">{avatarFile.name}</p>}
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4">
+                          <FieldInput label="Name" id="display-name" value={displayName} onChange={setDisplayName} placeholder="Your name" />
+                          <FieldInput label="Email" id="email" value={user?.email || ""} readOnly className="text-muted-foreground cursor-not-allowed opacity-60" />
+                          <div className="grid gap-1.5">
+                            <Label htmlFor="username" className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Username</Label>
+                            <div className="relative">
+                              <AtSign className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                              <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="johndoe" className="bg-muted border-none h-11 rounded-xl pl-10" />
+                            </div>
+                          </div>
+
+                          {user?.providerData[0]?.providerId !== "google.com" && (
+                            <>
+                              <PasswordField label="Current Password" id="current-pass" value={currentPassword} onChange={setCurrentPassword} show={showPassword} onToggle={() => setShowPassword(!showPassword)} />
+                              <PasswordField label="New Password" id="new-pass" value={newPassword} onChange={setNewPassword} placeholder="Leave blank to keep current" show={showNewPassword} onToggle={() => setShowNewPassword(!showNewPassword)} />
+                            </>
+                          )}
+
+                          <div className="grid gap-1.5">
+                            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Phone Number</Label>
+                            <div className="flex gap-2">
+                              <select value={phoneCode} onChange={(e) => setPhoneCode(e.target.value)} className="bg-muted border-none h-11 rounded-xl px-3 text-sm font-medium appearance-none cursor-pointer min-w-[72px] focus:outline-none focus:ring-2 focus:ring-primary/40">
+                                {["+91","+1","+44","+61","+81","+86","+49","+33","+971","+65"].map(c => <option key={c} value={c}>{c}</option>)}
+                              </select>
+                              <Input value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value.replace(/[^0-9]/g, ""))} placeholder="9876543210" className="bg-muted border-none h-11 rounded-xl flex-1" maxLength={15} />
+                            </div>
+                          </div>
+                        </div>
+
+                        <DialogFooter className="pt-5 gap-2">
+                          <Button variant="ghost" onClick={() => setIsEditing(false)} className="rounded-xl">Cancel</Button>
+                          <Button onClick={handleSaveProfile} disabled={isSaving} className="bg-primary text-primary-foreground px-7 font-bold font-headline h-11 rounded-xl gap-2">
+                            {isSaving ? <><Loader2 className="h-4 w-4 animate-spin" />SAVING…</> : <><Save className="h-4 w-4" />SAVE CHANGES</>}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+
+                    <Button onClick={handleLogout} variant="destructive" className="flex-1 h-12 rounded-xl gap-2 font-headline font-bold shadow-lg shadow-destructive/10 active:scale-[0.98] transition-all">
+                      <LogOut className="h-4 w-4" /> LOG OUT
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Upsell Banner */}
+              <Card className="p-7 glass-card border-primary/15 bg-gradient-to-br from-primary/8 to-accent/5 overflow-hidden relative">
+                <div className="relative z-10 space-y-3">
+                  <Badge className="bg-primary/15 text-primary border-primary/20 text-xs font-bold px-3">ELITE PLAN</Badge>
+                  <h3 className="text-xl font-headline font-bold text-foreground">Need Financial Advice?</h3>
+                  <p className="text-muted-foreground text-sm max-w-sm">Premium AI agents help you optimize your portfolio and plan for early retirement.</p>
+                  <Button variant="outline" className="rounded-xl border-primary/25 hover:bg-primary/10 font-bold text-sm" onClick={() => router.push("/pro")}>
+                    TALK TO ELITE AI
+                  </Button>
+                </div>
+                <Zap className="absolute -bottom-8 -right-8 h-44 w-44 text-primary/5 pointer-events-none" />
+              </Card>
+            </TabsContent>
+
+            {/* ── Security Tab ── */}
+            <TabsContent value="security" className="animate-in fade-in duration-500">
+              <Card className="p-7 glass-card border-white/5">
+                <h3 className="text-xl font-headline font-bold mb-6 flex items-center gap-2.5">
+                  <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <Lock className="h-4 w-4 text-primary" />
+                  </div>
+                  Security &amp; Access
+                </h3>
+
+                <div className="space-y-4">
+                  <SecurityRow
+                    icon={<CheckCircle2 className="h-5 w-5 text-emerald-400" />}
+                    iconBg="bg-emerald-500/10"
+                    title="Email Verified"
+                    desc={user?.emailVerified ? "Your identity is confirmed" : "Verification required"}
+                    action={!user?.emailVerified ? <Button variant="link" className="text-primary h-auto p-0 text-xs font-bold">Verify now</Button> : null}
+                  />
+                  <SecurityRow
+                    icon={<Smartphone className="h-5 w-5 text-primary" />}
+                    iconBg="bg-primary/10"
+                    title="Two-Factor Auth"
+                    desc="Add an extra layer of security"
+                    action={<Switch disabled />}
+                  />
+                  <SecurityRow
+                    icon={<Shield className="h-5 w-5 text-accent" />}
+                    iconBg="bg-accent/10"
+                    title="Login Activity"
+                    desc="Last signed in recently"
+                    action={<Button variant="link" className="text-primary h-auto p-0 text-xs font-bold" onClick={() => toast({ title: "Login Activity", description: "Coming soon." })}>View</Button>}
+                  />
+
+                  <div className="pt-4">
+                    <Button variant="outline" className="w-full h-11 rounded-xl border-white/10 hover:bg-white/5 font-bold text-sm" onClick={() => toast({ title: "Change Password", description: "Use Edit Profile to change your password." })}>
+                      CHANGE PASSWORD
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </TabsContent>
+
+            {/* ── Preferences Tab ── */}
+            <TabsContent value="preferences" className="animate-in fade-in duration-500">
+              <Card className="p-7 glass-card border-white/5">
+                <h3 className="text-xl font-headline font-bold mb-6 flex items-center gap-2.5">
+                  <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <Globe className="h-4 w-4 text-primary" />
+                  </div>
+                  App Preferences
+                </h3>
+
+                <div className="space-y-7">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Primary Currency</Label>
+                    <Select defaultValue="INR">
+                      <SelectTrigger className="w-full h-12 bg-muted/30 border-white/5 rounded-xl">
+                        <div className="flex items-center gap-2">
+                          <Coins className="h-4 w-4 text-primary" />
+                          <SelectValue placeholder="Select Currency" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent className="glass-card border-white/10">
+                        <SelectItem value="INR">Indian Rupee (₹)</SelectItem>
+                        <SelectItem value="USD">US Dollar ($)</SelectItem>
+                        <SelectItem value="EUR">Euro (€)</SelectItem>
+                        <SelectItem value="GBP">British Pound (£)</SelectItem>
+                        <SelectItem value="JPY">Japanese Yen (¥)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-4">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Notifications</p>
+                    {[
+                      { icon: Bell, label: "Spending Alerts", desc: "Get notified when you overspend", defaultChecked: true },
+                      { icon: Zap, label: "AI Weekly Summaries", desc: "Receive AI insights every week", defaultChecked: true },
+                      { icon: Crown, label: "Elite Offers", desc: "Exclusive deals for power users", defaultChecked: false },
+                    ].map(({ icon: Icon, label, desc, defaultChecked }) => (
+                      <div key={label} className="flex items-center justify-between p-4 bg-muted/20 rounded-xl border border-white/5">
+                        <div className="flex items-center gap-3">
+                          <Icon className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">{label}</p>
+                            <p className="text-xs text-muted-foreground">{desc}</p>
+                          </div>
+                        </div>
+                        <Switch defaultChecked={defaultChecked} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
+    </div>
+  );
+}
+
+/* ── Small helper components ── */
+function FieldInput({ label, id, value, onChange, placeholder, readOnly, className }: {
+  label: string; id: string; value: string; onChange?: (v: string) => void;
+  placeholder?: string; readOnly?: boolean; className?: string;
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id} className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</Label>
+      <Input id={id} value={value} onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+        placeholder={placeholder} readOnly={readOnly} className={`bg-muted border-none h-11 rounded-xl ${className || ""}`} />
+    </div>
+  );
+}
+
+function PasswordField({ label, id, value, onChange, placeholder, show, onToggle }: {
+  label: string; id: string; value: string; onChange: (v: string) => void;
+  placeholder?: string; show: boolean; onToggle: () => void;
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id} className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</Label>
+      <div className="relative">
+        <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input id={id} type={show ? "text" : "password"} value={value} onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder || "••••••••••"} className="bg-muted border-none h-11 rounded-xl pl-10 pr-11" />
+        <button type="button" onClick={onToggle} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+          {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SecurityRow({ icon, iconBg, title, desc, action }: {
+  icon: React.ReactNode; iconBg: string; title: string; desc: string; action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between p-4 bg-muted/20 rounded-xl border border-white/5">
+      <div className="flex items-center gap-3.5">
+        <div className={`w-10 h-10 rounded-xl ${iconBg} flex items-center justify-center shrink-0`}>{icon}</div>
+        <div>
+          <p className="font-semibold text-sm">{title}</p>
+          <p className="text-xs text-muted-foreground">{desc}</p>
+        </div>
+      </div>
+      {action}
     </div>
   );
 }
