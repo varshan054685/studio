@@ -24,6 +24,9 @@ import { collection, addDoc, deleteDoc, doc, query, updateDoc } from "firebase/f
 import { Skeleton } from "@/components/ui/skeleton";
 import type { BudgetGoal } from "@/app/lib/types";
 
+const MAX_CATEGORY_LENGTH = 80;
+const MAX_AMOUNT = 100000000;
+
 export default function GoalsPage() {
   const { user } = useUser();
   const db = useFirestore();
@@ -59,11 +62,17 @@ export default function GoalsPage() {
     const category = newCat.trim();
     const monthlyLimit = Number(newLimit);
 
-    if (!category || !Number.isFinite(monthlyLimit) || monthlyLimit <= 0) {
+    if (
+      !category ||
+      category.length > MAX_CATEGORY_LENGTH ||
+      !Number.isFinite(monthlyLimit) ||
+      monthlyLimit <= 0 ||
+      monthlyLimit > MAX_AMOUNT
+    ) {
       toast({
         variant: "destructive",
         title: "Invalid Goal",
-        description: "Enter a category and a monthly limit greater than zero.",
+        description: "Enter a short category and a limit between 0 and 100,000,000.",
       });
       return;
     }
@@ -112,15 +121,18 @@ export default function GoalsPage() {
 
     if (
       !category ||
+      category.length > MAX_CATEGORY_LENGTH ||
       !Number.isFinite(monthlyLimit) ||
       monthlyLimit <= 0 ||
+      monthlyLimit > MAX_AMOUNT ||
       !Number.isFinite(currentSpent) ||
-      currentSpent < 0
+      currentSpent < 0 ||
+      currentSpent > MAX_AMOUNT
     ) {
       toast({
         variant: "destructive",
         title: "Invalid Goal",
-        description: "Enter a category, a limit greater than zero, and spent amount of zero or more.",
+        description: "Enter a short category, a valid limit, and a spent amount from 0 to 100,000,000.",
       });
       return;
     }
@@ -168,6 +180,7 @@ export default function GoalsPage() {
                   value={newCat} 
                   onChange={(e) => setNewCat(e.target.value)}
                   placeholder="e.g. Fine Dining" 
+                  maxLength={MAX_CATEGORY_LENGTH}
                   className="bg-muted border-none h-12 rounded-xl"
                 />
               </div>
@@ -179,6 +192,7 @@ export default function GoalsPage() {
                   value={newLimit} 
                   onChange={(e) => setNewLimit(e.target.value)}
                   placeholder="10000" 
+                  max={MAX_AMOUNT}
                   className="bg-muted border-none h-12 rounded-xl font-headline font-bold text-xl"
                 />
               </div>
@@ -288,6 +302,7 @@ export default function GoalsPage() {
                 id="edit-category"
                 value={editingCategory}
                 onChange={(e) => setEditingCategory(e.target.value)}
+                maxLength={MAX_CATEGORY_LENGTH}
                 className="bg-muted border-none h-12 rounded-xl"
               />
             </div>
@@ -298,6 +313,7 @@ export default function GoalsPage() {
                 type="number"
                 value={editingLimit}
                 onChange={(e) => setEditingLimit(e.target.value)}
+                max={MAX_AMOUNT}
                 className="bg-muted border-none h-12 rounded-xl"
               />
             </div>
@@ -308,6 +324,7 @@ export default function GoalsPage() {
                 type="number"
                 value={editingSpent}
                 onChange={(e) => setEditingSpent(e.target.value)}
+                max={MAX_AMOUNT}
                 className="bg-muted border-none h-12 rounded-xl"
               />
             </div>

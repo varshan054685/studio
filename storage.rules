@@ -10,7 +10,7 @@ service firebase.storage {
       return request.resource != null
         && request.resource.size > 0
         && request.resource.size <= 2 * 1024 * 1024
-        && request.resource.contentType.matches('image/(jpeg|png|webp|gif)')
+        && request.resource.contentType.matches('^image/(jpeg|png|webp|gif)$')
         && fileName.matches('^avatar-[A-Za-z0-9._-]+\\.(jpg|jpeg|png|webp|gif)$');
     }
 

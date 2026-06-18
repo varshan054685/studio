@@ -45,6 +45,10 @@ import { collection, addDoc, deleteDoc, doc, query, orderBy } from "firebase/fir
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Transaction } from "@/app/lib/types";
 
+const MAX_DESCRIPTION_LENGTH = 160;
+const MAX_CATEGORY_LENGTH = 80;
+const MAX_AMOUNT = 100000000;
+
 export default function TransactionsPage() {
   const { user } = useUser();
   const db = useFirestore();
@@ -106,11 +110,18 @@ export default function TransactionsPage() {
     const description = newDesc.trim();
     const amount = Number(newAmount);
 
-    if (!description || !Number.isFinite(amount) || amount <= 0) {
+    if (
+      !description ||
+      description.length > MAX_DESCRIPTION_LENGTH ||
+      newCategory.length > MAX_CATEGORY_LENGTH ||
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
+      amount > MAX_AMOUNT
+    ) {
       toast({
         variant: "destructive",
         title: "Invalid Entry",
-        description: "Enter a description and an amount greater than zero.",
+        description: "Enter a short description and an amount between 0 and 100,000,000.",
       });
       return;
     }
@@ -210,6 +221,7 @@ export default function TransactionsPage() {
                       value={newDesc} 
                       onChange={(e) => setNewDesc(e.target.value)}
                       placeholder="e.g. Swiggy Order" 
+                      maxLength={MAX_DESCRIPTION_LENGTH}
                       className="bg-muted border-none h-12 rounded-xl"
                     />
                     <Button 
@@ -233,6 +245,7 @@ export default function TransactionsPage() {
                       value={newAmount} 
                       onChange={(e) => setNewAmount(e.target.value)}
                       placeholder="0.00" 
+                      max={MAX_AMOUNT}
                       className="bg-muted border-none h-12 rounded-xl font-headline font-bold text-lg"
                     />
                   </div>
