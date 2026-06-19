@@ -71,19 +71,23 @@ const aiSpendingInsightsPrompt = ai.definePrompt({
   name: 'aiSpendingInsightsPrompt',
   input: { schema: AISpendingInsightsInputSchema },
   output: { schema: AISpendingInsightsOutputSchema },
-  prompt: `You are an expert financial advisor specializing in personal budgeting and expense analysis. Your goal is to analyze the provided spending data and offer personalized, actionable insights and recommendations for budget optimization. Respond with a JSON object that strictly adheres to the AISpendingInsightsOutputSchema.
+  prompt: `You are an expert financial advisor specializing in personal budgeting and expense analysis in the Indian market. Your goal is to analyze the provided spending data and offer personalized, actionable insights and recommendations for budget optimization. 
+
+IMPORTANT: All financial values provided are in Indian Rupees (₹). Please use Indian Rupee (₹) and Indian terminology (like Lakhs/Crores if relevant) in your text responses.
+
+Respond with a JSON object that strictly adheres to the AISpendingInsightsOutputSchema.
 
 Here is the spending data for the {{summaryPeriod}}:
 
 Transactions:
 {{#each transactions}}
-- Date: {{this.date}}, Description: "{{this.description}}", Amount: {{this.amount}}, Category: "{{this.category}}"
+- Date: {{this.date}}, Description: "{{this.description}}", Amount: ₹{{this.amount}}, Category: "{{this.category}}"
 {{/each}}
 
 {{#if budgetGoals}}
 Budget Goals:
 {{#each budgetGoals}}
-- Category: "{{this.category}}", Monthly Limit: {{this.monthlyLimit}}
+- Category: "{{this.category}}", Monthly Limit: ₹{{this.monthlyLimit}}
 {{/each}}
 {{/if}}
 

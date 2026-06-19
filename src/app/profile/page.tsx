@@ -129,7 +129,6 @@ export default function ProfilePage() {
       toast({ variant: "destructive", title: "Too Large", description: "Choose an image under 5MB." });
       return;
     }
-    // Compress image before storing to make upload fast
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);
     img.onload = () => {
@@ -180,8 +179,6 @@ export default function ProfilePage() {
         await updatePassword(user, newPassword.trim());
       }
       toast({ title: "Profile Updated", description: "Your details are now current." });
-      // Update photoURL state first so currentPhotoURL reflects the new value
-      // before avatarFile is cleared (which revokes the blob preview)
       setPhotoURL(nextPhotoURL ?? "");
       setAvatarFile(null);
       setAvatarPreviewURL("");
@@ -196,8 +193,6 @@ export default function ProfilePage() {
 
   return (
     <div className="p-4 md:p-8 lg:p-12 max-w-6xl mx-auto w-full space-y-10">
-
-      {/* Header */}
       <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-4xl md:text-5xl font-headline font-bold text-foreground mb-1">Account</h1>
@@ -209,13 +204,8 @@ export default function ProfilePage() {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-        {/* ── Left Column ── */}
         <div className="space-y-5">
-
-          {/* Profile Card */}
           <Card className="overflow-hidden glass-card border-white/5 relative">
-            {/* hero gradient */}
             <div className="h-24 bg-gradient-to-br from-primary/30 via-accent/20 to-transparent w-full" />
             <div className="px-8 pb-8 -mt-14 flex flex-col items-center text-center space-y-4">
               <div className="relative group">
@@ -265,7 +255,6 @@ export default function ProfilePage() {
             </div>
           </Card>
 
-          {/* Stats */}
           <Card className="p-5 glass-card border-white/5">
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-4">Statistics</p>
             <div className="grid grid-cols-2 gap-3">
@@ -280,30 +269,8 @@ export default function ProfilePage() {
               ))}
             </div>
           </Card>
-
-          {/* Quick Actions */}
-          <Card className="p-5 glass-card border-white/5">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Quick Actions</p>
-            <div className="space-y-0.5">
-              {[
-                { icon: Shield, label: "Privacy Settings" },
-                { icon: Share2, label: "Share Progress" },
-              ].map(({ icon: Icon, label }) => (
-                <Button
-                  key={label}
-                  variant="ghost"
-                  onClick={() => toast({ title: label, description: "Coming soon." })}
-                  className="w-full justify-between h-11 rounded-xl hover:bg-white/5 text-muted-foreground hover:text-foreground group"
-                >
-                  <span className="flex items-center gap-3 text-sm"><Icon className="h-4 w-4" />{label}</span>
-                  <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              ))}
-            </div>
-          </Card>
         </div>
 
-        {/* ── Right Column ── */}
         <div className="lg:col-span-2">
           <Tabs defaultValue="profile" className="w-full">
             <TabsList className="w-full justify-start bg-muted/20 p-1 h-auto rounded-2xl border border-white/5 mb-7">
@@ -318,7 +285,6 @@ export default function ProfilePage() {
               ))}
             </TabsList>
 
-            {/* ── Profile Tab ── */}
             <TabsContent value="profile" className="space-y-6 animate-in fade-in duration-500">
               <Card className="p-7 glass-card border-white/5">
                 <h3 className="text-xl font-headline font-bold mb-6 flex items-center gap-2.5">
@@ -346,19 +312,22 @@ export default function ProfilePage() {
                     ))}
                   </div>
 
-                  {/* Account UID hidden for privacy */}
-
                   <div className="pt-5 border-t border-white/5 flex flex-col sm:flex-row gap-3">
                     <Dialog open={isEditing} onOpenChange={(open) => {
                       setIsEditing(open);
-                      if (!open) { setNewPassword(""); setCurrentPassword(""); setShowPassword(false); setShowNewPassword(false); }
+                      if (!open) { 
+                        setNewPassword(""); 
+                        setCurrentPassword(""); 
+                        setShowPassword(false); 
+                        setShowNewPassword(false); 
+                      }
                     }}>
                       <DialogTrigger asChild>
                         <Button className="flex-1 h-12 rounded-xl bg-foreground text-background font-bold font-headline hover:bg-foreground/90 transition-all active:scale-[0.98]">
                           EDIT PROFILE
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="glass-card border-white/10 sm:max-w-[520px] p-8 max-h-[90vh] overflow-y-auto">
+                      <DialogContent className="glass-card border-white/10 sm:max-w-[520px] p-8 max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
                         <DialogHeader>
                           <DialogTitle className="font-headline text-2xl font-bold">Edit Profile</DialogTitle>
                           <DialogDescription>Update your personal information and account settings.</DialogDescription>
@@ -427,22 +396,8 @@ export default function ProfilePage() {
                   </div>
                 </div>
               </Card>
-
-              {/* Upsell Banner */}
-              <Card className="p-7 glass-card border-primary/15 bg-gradient-to-br from-primary/8 to-accent/5 overflow-hidden relative">
-                <div className="relative z-10 space-y-3">
-                  <Badge className="bg-primary/15 text-primary border-primary/20 text-xs font-bold px-3">ELITE PLAN</Badge>
-                  <h3 className="text-xl font-headline font-bold text-foreground">Need Financial Advice?</h3>
-                  <p className="text-muted-foreground text-sm max-w-sm">Premium AI agents help you optimize your portfolio and plan for early retirement.</p>
-                  <Button variant="outline" className="rounded-xl border-primary/25 hover:bg-primary/10 font-bold text-sm" onClick={() => router.push("/pro")}>
-                    TALK TO ELITE AI
-                  </Button>
-                </div>
-                <Zap className="absolute -bottom-8 -right-8 h-44 w-44 text-primary/5 pointer-events-none" />
-              </Card>
             </TabsContent>
 
-            {/* ── Security Tab ── */}
             <TabsContent value="security" className="animate-in fade-in duration-500">
               <Card className="p-7 glass-card border-white/5">
                 <h3 className="text-xl font-headline font-bold mb-6 flex items-center gap-2.5">
@@ -458,7 +413,6 @@ export default function ProfilePage() {
                     iconBg="bg-emerald-500/10"
                     title="Email Verified"
                     desc={user?.emailVerified ? "Your identity is confirmed" : "Verification required"}
-                    action={!user?.emailVerified ? <Button variant="link" className="text-primary h-auto p-0 text-xs font-bold">Verify now</Button> : null}
                   />
                   <SecurityRow
                     icon={<Smartphone className="h-5 w-5 text-primary" />}
@@ -467,72 +421,6 @@ export default function ProfilePage() {
                     desc="Add an extra layer of security"
                     action={<Switch disabled />}
                   />
-                  <SecurityRow
-                    icon={<Shield className="h-5 w-5 text-accent" />}
-                    iconBg="bg-accent/10"
-                    title="Login Activity"
-                    desc="Last signed in recently"
-                    action={<Button variant="link" className="text-primary h-auto p-0 text-xs font-bold" onClick={() => toast({ title: "Login Activity", description: "Coming soon." })}>View</Button>}
-                  />
-
-                  <div className="pt-4">
-                    <Button variant="outline" className="w-full h-11 rounded-xl border-white/10 hover:bg-white/5 font-bold text-sm" onClick={() => toast({ title: "Change Password", description: "Use Edit Profile to change your password." })}>
-                      CHANGE PASSWORD
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            </TabsContent>
-
-            {/* ── Preferences Tab ── */}
-            <TabsContent value="preferences" className="animate-in fade-in duration-500">
-              <Card className="p-7 glass-card border-white/5">
-                <h3 className="text-xl font-headline font-bold mb-6 flex items-center gap-2.5">
-                  <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <Globe className="h-4 w-4 text-primary" />
-                  </div>
-                  App Preferences
-                </h3>
-
-                <div className="space-y-7">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Primary Currency</Label>
-                    <Select defaultValue="INR">
-                      <SelectTrigger className="w-full h-12 bg-muted/30 border-white/5 rounded-xl">
-                        <div className="flex items-center gap-2">
-                          <Coins className="h-4 w-4 text-primary" />
-                          <SelectValue placeholder="Select Currency" />
-                        </div>
-                      </SelectTrigger>
-                      <SelectContent className="glass-card border-white/10">
-                        <SelectItem value="INR">Indian Rupee (₹)</SelectItem>
-                        <SelectItem value="USD">US Dollar ($)</SelectItem>
-                        <SelectItem value="EUR">Euro (€)</SelectItem>
-                        <SelectItem value="GBP">British Pound (£)</SelectItem>
-                        <SelectItem value="JPY">Japanese Yen (¥)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-4">
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Notifications</p>
-                    {[
-                      { icon: Bell, label: "Spending Alerts", desc: "Get notified when you overspend", defaultChecked: true },
-                      { icon: Zap, label: "AI Weekly Summaries", desc: "Receive AI insights every week", defaultChecked: true },
-                      { icon: Crown, label: "Elite Offers", desc: "Exclusive deals for power users", defaultChecked: false },
-                    ].map(({ icon: Icon, label, desc, defaultChecked }) => (
-                      <div key={label} className="flex items-center justify-between p-4 bg-muted/20 rounded-xl border border-white/5">
-                        <div className="flex items-center gap-3">
-                          <Icon className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-sm font-medium">{label}</p>
-                            <p className="text-xs text-muted-foreground">{desc}</p>
-                          </div>
-                        </div>
-                        <Switch defaultChecked={defaultChecked} />
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </Card>
             </TabsContent>
@@ -543,7 +431,6 @@ export default function ProfilePage() {
   );
 }
 
-/* ── Small helper components ── */
 function FieldInput({ label, id, value, onChange, placeholder, readOnly, className }: {
   label: string; id: string; value: string; onChange?: (v: string) => void;
   placeholder?: string; readOnly?: boolean; className?: string;
@@ -566,9 +453,20 @@ function PasswordField({ label, id, value, onChange, placeholder, show, onToggle
       <Label htmlFor={id} className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</Label>
       <div className="relative">
         <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input id={id} type={show ? "text" : "password"} value={value} onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder || "••••••••••"} className="bg-muted border-none h-11 rounded-xl pl-10 pr-11" />
-        <button type="button" onClick={onToggle} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+        <Input 
+          id={id} 
+          type={show ? "text" : "password"} 
+          value={value} 
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder || "••••••••••"} 
+          className="bg-muted border-none h-11 rounded-xl pl-10 pr-11" 
+        />
+        <button 
+          type="button" 
+          onClick={onToggle} 
+          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+          aria-label={show ? "Hide password" : "Show password"}
+        >
           {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </button>
       </div>
