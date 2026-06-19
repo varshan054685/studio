@@ -11,13 +11,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  User, Mail, Shield, Zap, LogOut, ChevronRight, Crown, Share2, Bell, Globe, Coins,
-  Lock, Smartphone, Calendar, CheckCircle2, Camera, AtSign, Phone, Eye, EyeOff, Save, Loader2,
+  User, Mail, Zap, LogOut, Crown, Bell, Globe, Coins,
+  Lock, Smartphone, Calendar, Camera, AtSign, Phone, Eye, EyeOff, Save, Loader2,
 } from "lucide-react";
 import { signOut, updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import { doc, setDoc, collection, query, DocumentReference } from "firebase/firestore";
@@ -327,7 +326,7 @@ export default function ProfilePage() {
                           EDIT PROFILE
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="glass-card border-white/10 sm:max-w-[520px] p-8 max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+                      <DialogContent className="glass-card border-white/10 sm:max-w-[520px] p-8 max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                           <DialogTitle className="font-headline text-2xl font-bold">Edit Profile</DialogTitle>
                           <DialogDescription>Update your personal information and account settings.</DialogDescription>
@@ -409,9 +408,9 @@ export default function ProfilePage() {
 
                 <div className="space-y-4">
                   <SecurityRow
-                    icon={<CheckCircle2 className="h-5 w-5 text-emerald-400" />}
+                    icon={<Zap className="h-5 w-5 text-emerald-400" />}
                     iconBg="bg-emerald-500/10"
-                    title="Email Verified"
+                    title="Account Verified"
                     desc={user?.emailVerified ? "Your identity is confirmed" : "Verification required"}
                   />
                   <SecurityRow
