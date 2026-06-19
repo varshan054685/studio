@@ -88,7 +88,9 @@ export default function LoginPage() {
   };
 
   const handleForgotPassword = async () => {
-    if (!email) {
+    const targetEmail = email.trim().toLowerCase();
+    
+    if (!targetEmail) {
       toast({
         variant: "destructive",
         title: "Email Required",
@@ -99,17 +101,17 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      await sendPasswordResetEmail(auth, email.trim().toLowerCase());
+      await sendPasswordResetEmail(auth, targetEmail);
       toast({
         title: "Reset Email Sent",
-        description: "Check your inbox for password reset instructions.",
+        description: `A recovery link has been sent to ${targetEmail}. Please check your inbox.`,
       });
     } catch (error) {
       console.error(error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Could not send reset email. Please verify the email address.",
+        description: "Could not send reset email. Please verify the email address exists.",
       });
     } finally {
       setLoading(false);
@@ -179,10 +181,10 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 text-muted-foreground hover:text-foreground transition-colors p-1"
+                    className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground transition-colors p-1"
                     aria-label={showPassword ? "Hide password" : "Show password"}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
                 </div>
               </div>
