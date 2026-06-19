@@ -66,19 +66,26 @@ export default function LoginPage() {
   };
 
   const handleGoogleSignIn = async () => {
-    if (!auth) return;
+    if (!auth || loading) return;
+    setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
       toast({ title: "Welcome!", description: "Successfully logged in with Google." });
       router.push('/');
-    } catch (error) {
+    } catch (error: unknown) {
+      const code = (error as { code?: string })?.code;
+      if (code === 'auth/cancelled-popup-request' || code === 'auth/popup-closed-by-user') return;
       console.error(error);
       toast({
         variant: "destructive",
         title: "Google Sign-In Error",
-        description: "Google sign-in did not complete. Please try again.",
+        description: code === 'auth/operation-not-allowed'
+          ? "Google sign-in is not enabled. Please enable it in Firebase Console."
+          : "Google sign-in did not complete. Please try again.",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -147,7 +154,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <Button variant="outline" className="w-full h-12 bg-muted/20 border-white/5 font-headline font-bold" onClick={handleGoogleSignIn}>
+            <Button variant="outline" className="w-full h-12 bg-muted/20 border-white/5 font-headline font-bold" onClick={handleGoogleSignIn} disabled={loading}>
               <Chrome className="mr-2 h-4 w-4" /> GOOGLE
             </Button>
           </CardContent>
