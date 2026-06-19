@@ -74,13 +74,16 @@ export default function LoginPage() {
       await signInWithPopup(auth, provider);
       toast({ title: "Welcome!", description: "Successfully logged in with Google." });
       router.push('/');
-    } catch (error: any) {
-      if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') return;
+    } catch (error: unknown) {
+      const code = (error as { code?: string })?.code;
+      if (code === 'auth/cancelled-popup-request' || code === 'auth/popup-closed-by-user') return;
       console.error(error);
       toast({
         variant: "destructive",
         title: "Google Sign-In Error",
-        description: "Could not complete sign-in. Please try again.",
+        description: code === 'auth/operation-not-allowed'
+          ? "Google sign-in is not enabled. Enable it in Firebase Console."
+          : "Could not complete sign-in. Please try again.",
       });
     } finally {
       setLoading(false);
