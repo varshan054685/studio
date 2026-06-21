@@ -163,9 +163,12 @@ export default function ProfilePage() {
         nextPhotoURL = await getDownloadURL(result.ref);
       }
       await updateProfile(user, { displayName: sanitize(displayName.trim()) || null, photoURL: nextPhotoURL });
-      await setDoc(doc(db, "users", user.uid, "profile", "info"), {
+      const profileWrite = setDoc(doc(db, "users", user.uid, "profile", "info"), {
         username: sanitize(username.trim()), phoneCode, phoneNumber: phoneNumber.trim(),
       }, { merge: true });
+      await profileWrite;
+
+      let didChangePassword = false;
       if (newPassword.trim()) {
         if (user.providerData[0]?.providerId === "password") {
           if (!currentPassword.trim()) {
@@ -173,17 +176,20 @@ export default function ProfilePage() {
             setIsSaving(false);
             return;
           }
-          await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email!, currentPassword));
+          const credential = EmailAuthProvider.credential(user.email!, currentPassword);
+          await reauthenticateWithCredential(user, credential);
         }
         await updatePassword(user, newPassword.trim());
+        didChangePassword = true;
       }
-      toast({ title: "Profile Updated", description: "Your details are now current." });
+      toast({ title: "Profile Updated", description: didChangePassword ? "Profile and password updated." : "Your details are now current." });
       setPhotoURL(nextPhotoURL ?? "");
       setAvatarFile(null);
       setAvatarPreviewURL("");
       setNewPassword(""); setCurrentPassword("");
       setIsEditing(false);
     } catch (e) {
+      console.error("Profile save failed:", e);
       toast({ variant: "destructive", title: "Update Failed", description: e instanceof Error ? e.message : String(e) });
     } finally {
       setIsSaving(false);
