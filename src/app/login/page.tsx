@@ -2,14 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signInWithPopup, 
-  GoogleAuthProvider,
-  sendPasswordResetEmail
-} from 'firebase/auth';
-import { useAuth } from '@/firebase';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -23,13 +16,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const auth = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) return;
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!isLogin && password.length < 8) {
@@ -45,15 +36,24 @@ export default function LoginPage() {
 
     try {
       if (isLogin) {
-        await signInWithEmailAndPassword(auth, normalizedEmail, password);
+        const { error } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
+        if (error) throw error;
         toast({ title: "Welcome back!", description: "Successfully logged in." });
       } else {
-        await createUserWithEmailAndPassword(auth, normalizedEmail, password);
-        toast({ title: "Account created", description: "Welcome to Lumina!" });
+        const { error } = await supabase.auth.signUp({
+          email: normalizedEmail,
+          password,
+        });
+        if (error) throw error;
+        toast({ title: "Account created", description: "Welcome to Lumina! Check your email to confirm." });
       }
       router.push('/');
     } catch (error) {
       console.error(error);
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         variant: "destructive",
         title: "Authentication Error",
@@ -67,32 +67,28 @@ export default function LoginPage() {
   };
 
   const handleGoogleSignIn = async () => {
-    if (!auth || loading) return;
+    if (loading) return;
     setLoading(true);
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      toast({ title: "Welcome!", description: "Successfully logged in with Google." });
-      router.push('/');
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin },
+      });
+      if (error) throw error;
     } catch (error: unknown) {
-      const code = (error as { code?: string })?.code;
-      if (code === 'auth/cancelled-popup-request' || code === 'auth/popup-closed-by-user') return;
       console.error(error);
       toast({
         variant: "destructive",
         title: "Google Sign-In Error",
-        description: code === 'auth/operation-not-allowed'
-          ? "Google sign-in is not enabled. Enable it in Firebase Console."
-          : "Could not complete sign-in. Please try again.",
+        description: "Could not complete sign-in. Please try again.",
       });
-    } finally {
       setLoading(false);
     }
   };
 
   const handleForgotPassword = async () => {
     const targetEmail = email.trim().toLowerCase();
-    
+
     if (!targetEmail) {
       toast({
         variant: "destructive",
@@ -104,7 +100,10 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      await sendPasswordResetEmail(auth, targetEmail);
+      const { error } = await supabase.auth.resetPasswordForEmail(targetEmail, {
+        redirectTo: window.location.origin,
+      });
+      if (error) throw error;
       toast({
         title: "Reset Email Sent",
         description: `A recovery link has been sent to ${targetEmail}. Please check your inbox.`,

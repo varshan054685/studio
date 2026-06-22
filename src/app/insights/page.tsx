@@ -7,29 +7,19 @@ import { getAISpendingInsights, AISpendingInsightsOutput } from "@/ai/flows/ai-s
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useCollection, useFirestore } from "@/firebase";
-import { collection, query } from "firebase/firestore";
+import { useUser } from "@/lib/use-user";
+import { useCollection } from "@/lib/use-collection";
 import type { Transaction, BudgetGoal } from "@/app/lib/types";
 
 export default function InsightsPage() {
   const { user } = useUser();
-  const db = useFirestore();
   const [loading, setLoading] = useState(false);
   const [insights, setInsights] = useState<AISpendingInsightsOutput | null>(null);
   const { toast } = useToast();
   const uid = user?.uid;
 
-  const txQuery = useMemo(
-    () => (uid ? query(collection(db, 'users', uid, 'transactions')) : null),
-    [db, uid]
-  );
-  const goalsQuery = useMemo(
-    () => (uid ? query(collection(db, 'users', uid, 'goals')) : null),
-    [db, uid]
-  );
-
-  const { data: transactions, error: txError } = useCollection<Transaction>(txQuery);
-  const { data: goals, error: goalsError } = useCollection<BudgetGoal>(goalsQuery);
+  const { data: transactions, error: txError } = useCollection<Transaction>('transactions', uid);
+  const { data: goals, error: goalsError } = useCollection<BudgetGoal>('goals', uid);
 
   const generateInsights = async () => {
     if (!transactions || transactions.length === 0) {
@@ -52,7 +42,7 @@ export default function InsightsPage() {
         })),
         budgetGoals: goals?.map(b => ({
           category: b.category,
-          monthlyLimit: b.monthlyLimit
+          monthlyLimit: b.monthly_limit
         })) || [],
         summaryPeriod: "last month"
       });

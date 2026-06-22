@@ -5,13 +5,14 @@ export interface Transaction {
   description: string;
   amount: number;
   category: string;
-  merchant?: string;
+  created_at?: string;
 }
 
 export interface BudgetGoal {
+  id: string;
   category: string;
-  monthlyLimit: number;
-  currentSpent: number;
+  monthly_limit: number;
+  current_spent: number;
 }
 
 export type SummaryPeriod = "last month" | "this month" | "last 3 months" | "all time";

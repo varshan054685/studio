@@ -8,8 +8,7 @@ import { Wallet, Menu, LayoutDashboard, ReceiptText, Target, Sparkles, LogOut } 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { useAuth } from "@/firebase";
-import { signOut } from "firebase/auth";
+import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
 const menuItems = [
@@ -22,14 +21,12 @@ const menuItems = [
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
-  const auth = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
   const handleLogout = async () => {
-    if (!auth) return;
     try {
-      await signOut(auth);
+      await supabase.auth.signOut();
       setOpen(false);
       toast({ title: "Logged out", description: "See you soon!" });
       router.push('/login');
@@ -109,3 +106,4 @@ export function MobileNav() {
     </nav>
   );
 }
+

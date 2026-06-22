@@ -40,8 +40,9 @@ import {
 import { categorizeTransaction } from "@/ai/flows/automatic-transaction-categorization-flow";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/utils";
-import { useUser, useCollection, useFirestore } from "@/firebase";
-import { collection, addDoc, deleteDoc, doc, query, orderBy } from "firebase/firestore";
+import { useUser } from "@/lib/use-user";
+import { useCollection } from "@/lib/use-collection";
+import { supabase } from "@/lib/supabase";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Transaction } from "@/app/lib/types";
 
@@ -51,7 +52,6 @@ const MAX_AMOUNT = 100000000;
 
 export default function TransactionsPage() {
   const { user } = useUser();
-  const db = useFirestore();
   const [searchTerm, setSearchTerm] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [newDesc, setNewDesc] = useState("");
@@ -61,18 +61,11 @@ export default function TransactionsPage() {
   const { toast } = useToast();
   const uid = user?.uid;
 
-  const transactionsQuery = useMemo(
-    () =>
-      uid
-        ? query(
-            collection(db, 'users', uid, 'transactions'),
-            orderBy('date', 'desc')
-          )
-        : null,
-    [db, uid]
+  const { data: transactions, loading, error, refetch } = useCollection<Transaction>(
+    'transactions',
+    uid,
+    { orderBy: { column: 'date', ascending: false } }
   );
-
-  const { data: transactions, loading, error } = useCollection<Transaction>(transactionsQuery);
 
   const filteredTransactions = useMemo(() => {
     if (!transactions) return [];
@@ -127,17 +120,20 @@ export default function TransactionsPage() {
     }
 
     try {
-      await addDoc(collection(db, 'users', user.uid, 'transactions'), {
+      const { error: insertError } = await supabase.from('transactions').insert({
+        user_id: user.uid,
         date: new Date().toISOString().split('T')[0],
         description,
         amount,
         category: newCategory,
-        createdAt: new Date().toISOString()
       });
+      if (insertError) throw insertError;
+
       setIsAdding(false);
       setNewDesc("");
       setNewAmount("");
       setNewCategory("Other");
+      await refetch();
       toast({
         title: "Transaction Logged",
         description: `${description} added successfully.`,
@@ -151,7 +147,9 @@ export default function TransactionsPage() {
   const handleDelete = async (id: string) => {
     if (!user) return;
     try {
-      await deleteDoc(doc(db, 'users', user.uid, 'transactions', id));
+      const { error: deleteError } = await supabase.from('transactions').delete().eq('id', id);
+      if (deleteError) throw deleteError;
+      await refetch();
       toast({ title: "Removed", description: "Transaction deleted." });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
@@ -227,7 +225,7 @@ export default function TransactionsPage() {
                     <Button 
                       size="icon" 
                       variant="secondary" 
-                      onClick={handleAutoCategorize}
+                      onClick={handleAutoCategorize} 
                       disabled={!newDesc || isCategorizing}
                       className="rounded-xl h-12 w-12 shrink-0 bg-accent text-accent-foreground shadow-lg shadow-accent/20"
                       title="Auto-categorize"
@@ -350,3 +348,4 @@ export default function TransactionsPage() {
     </div>
   );
 }
+

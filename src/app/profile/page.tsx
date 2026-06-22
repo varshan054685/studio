@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo, type ChangeEvent } from "react";
-import { useUser, useAuth, useFirestore, useFirebaseApp, useCollection } from "@/firebase";
-import { useDoc } from "@/firebase/firestore/use-doc";
+import { useState, useEffect, type ChangeEvent } from "react";
+import { useUser } from "@/lib/use-user";
+import { supabase } from "@/lib/supabase";
+import { uploadAvatar } from "@/lib/storage";
+import { useCollection } from "@/lib/use-collection";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,24 +20,20 @@ import {
   User, Mail, Zap, LogOut, Crown, Bell, Globe, Coins,
   Lock, Smartphone, Calendar, Camera, AtSign, Phone, Eye, EyeOff, Save, Loader2,
 } from "lucide-react";
-import { signOut, updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
-import { doc, setDoc, collection, query, DocumentReference } from "firebase/firestore";
-import { getDownloadURL, getStorage, ref as storageRef, uploadBytes } from "firebase/storage";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { Transaction, BudgetGoal } from "@/app/lib/types";
 
-interface UserProfile {
-  username: string;
-  phoneCode: string;
-  phoneNumber: string;
+interface ProfileRow {
+  id: string;
+  username: string | null;
+  phone_code: string | null;
+  phone_number: string | null;
+  avatar_url: string | null;
 }
 
 export default function ProfilePage() {
-  const { user } = useUser();
-  const auth = useAuth();
-  const db = useFirestore();
-  const firebaseApp = useFirebaseApp();
+  const { user, refresh: refreshUser } = useUser();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -49,32 +47,22 @@ export default function ProfilePage() {
   const [phoneCode, setPhoneCode] = useState("+91");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
 
   const uid = user?.uid;
-  const storage = useMemo(
-    () => getStorage(firebaseApp, `gs://${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}`),
-    [firebaseApp]
-  );
 
-  const profileRef = useMemo(
-    () => (uid ? doc(db, "users", uid, "profile", "info") as DocumentReference<UserProfile> : null),
-    [db, uid]
-  );
-  const transactionsQuery = useMemo(
-    () => (uid ? query(collection(db, "users", uid, "transactions")) : null),
-    [db, uid]
-  );
-  const goalsQuery = useMemo(
-    () => (uid ? query(collection(db, "users", uid, "goals")) : null),
-    [db, uid]
-  );
+  // Fetch profile row from Supabase
+  const [profileData, setProfileData] = useState<ProfileRow | null>(null);
+  useEffect(() => {
+    if (!uid) return;
+    supabase.from("profiles").select("*").eq("id", uid).single().then(({ data, error }) => {
+      if (error) console.error("Profile fetch error:", error);
+      if (data) setProfileData(data as ProfileRow);
+    });
+  }, [uid]);
 
-  const { data: profileData } = useDoc<UserProfile>(profileRef);
-  const { data: transactions } = useCollection<Transaction>(transactionsQuery);
-  const { data: goals } = useCollection<BudgetGoal>(goalsQuery);
+  const { data: transactions } = useCollection<Transaction>("transactions", uid);
+  const { data: goals } = useCollection<BudgetGoal>("goals", uid);
 
   useEffect(() => {
     setDisplayName(user?.displayName ?? "");
@@ -91,8 +79,8 @@ export default function ProfilePage() {
   useEffect(() => {
     if (profileData) {
       setUsername(profileData.username || "");
-      setPhoneCode(profileData.phoneCode || "+91");
-      setPhoneNumber(profileData.phoneNumber || "");
+      setPhoneCode(profileData.phone_code || "+91");
+      setPhoneNumber(profileData.phone_number || "");
     }
   }, [profileData]);
 
@@ -100,16 +88,16 @@ export default function ProfilePage() {
   const currentDisplayName = sanitize(displayName || user?.displayName || user?.email?.split("@")[0] || "Anonymous");
   const currentPhotoURL = avatarPreviewURL || photoURL || user?.photoURL || undefined;
   const currentUsername = sanitize(username || profileData?.username || "");
-  const currentPhone = profileData?.phoneNumber ? `${profileData.phoneCode || "+91"} ${profileData.phoneNumber}` : "";
+  const currentPhone = profileData?.phone_number ? `${profileData.phone_code || "+91"} ${profileData.phone_number}` : "";
   const safeUid = uid?.replace(/[^a-zA-Z0-9]/g, "") || "lumina";
   const fallbackPhotoURL = `https://picsum.photos/seed/${safeUid}/200/200`;
-  const memberSince = user?.metadata.creationTime
-    ? new Date(user.metadata.creationTime).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+  const memberSince = user?.createdAt
+    ? new Date(user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })
     : "Recently";
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      await supabase.auth.signOut();
       toast({ title: "Logged out", description: "Safe travels!" });
       router.push("/login");
     } catch (e) {
@@ -152,49 +140,75 @@ export default function ProfilePage() {
   };
 
   const handleSaveProfile = async () => {
-    if (!user) return;
+    if (!user || !uid || isSaving) return;
     setIsSaving(true);
     try {
+      // 1. Upload avatar if selected
       let nextPhotoURL = photoURL.trim() || user.photoURL || null;
       if (avatarFile) {
-        const ext = avatarFile.name.split(".").pop()?.toLowerCase() || "jpg";
-        const ref = storageRef(storage, `users/${user.uid}/profile/avatar-${Date.now()}.${ext}`);
-        const result = await uploadBytes(ref, avatarFile, { contentType: avatarFile.type });
-        nextPhotoURL = await getDownloadURL(result.ref);
+        nextPhotoURL = await uploadAvatar(uid, avatarFile);
       }
-      await updateProfile(user, { displayName: sanitize(displayName.trim()) || null, photoURL: nextPhotoURL });
-      const profileWrite = setDoc(doc(db, "users", user.uid, "profile", "info"), {
-        username: sanitize(username.trim()), phoneCode, phoneNumber: phoneNumber.trim(),
-      }, { merge: true });
-      await profileWrite;
 
+      // 2. Update Supabase Auth metadata (displayName + avatar)
+      const cleanName = sanitize(displayName.trim()) || null;
+      await supabase.auth.updateUser({
+        data: {
+          full_name: cleanName,
+          display_name: cleanName,
+          avatar_url: nextPhotoURL,
+        },
+      });
+
+      // 3. Upsert profile row in Supabase
+      await supabase.from("profiles").upsert({
+        id: uid,
+        username: sanitize(username.trim()),
+        phone_code: phoneCode,
+        phone_number: phoneNumber.trim(),
+        avatar_url: nextPhotoURL,
+      });
+
+      // 4. Optionally update password
       let didChangePassword = false;
       if (newPassword.trim()) {
-        if (user.providerData[0]?.providerId === "password") {
-          if (!currentPassword.trim()) {
-            toast({ variant: "destructive", title: "Current Password Required", description: "Enter your current password." });
-            setIsSaving(false);
-            return;
-          }
-          const credential = EmailAuthProvider.credential(user.email!, currentPassword);
-          await reauthenticateWithCredential(user, credential);
-        }
-        await updatePassword(user, newPassword.trim());
+        const { error: pwError } = await supabase.auth.updateUser({
+          password: newPassword.trim(),
+        });
+        if (pwError) throw new Error(`Password update failed: ${pwError.message}`);
         didChangePassword = true;
       }
-      toast({ title: "Profile Updated", description: didChangePassword ? "Profile and password updated." : "Your details are now current." });
+
+      // 5. Refresh user in hook
+      await refreshUser();
+
+      toast({
+        title: "Profile Updated",
+        description: didChangePassword ? "Profile and password updated." : "Your details are now current.",
+      });
+
+      // 6. Reset local state
       setPhotoURL(nextPhotoURL ?? "");
       setAvatarFile(null);
       setAvatarPreviewURL("");
-      setNewPassword(""); setCurrentPassword("");
+      setNewPassword("");
       setIsEditing(false);
+
+      // Refresh profile row
+      const { data } = await supabase.from("profiles").select("*").eq("id", uid).single();
+      if (data) setProfileData(data as ProfileRow);
     } catch (e) {
       console.error("Profile save failed:", e);
-      toast({ variant: "destructive", title: "Update Failed", description: e instanceof Error ? e.message : String(e) });
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: e instanceof Error ? e.message : String(e),
+      });
     } finally {
       setIsSaving(false);
     }
   };
+
+  const isGoogleUser = user?.provider === "google";
 
   return (
     <div className="p-4 md:p-8 lg:p-12 max-w-6xl mx-auto w-full space-y-10">
@@ -320,11 +334,9 @@ export default function ProfilePage() {
                   <div className="pt-5 border-t border-white/5 flex flex-col sm:flex-row gap-3">
                     <Dialog open={isEditing} onOpenChange={(open) => {
                       setIsEditing(open);
-                      if (!open) { 
-                        setNewPassword(""); 
-                        setCurrentPassword(""); 
-                        setShowPassword(false); 
-                        setShowNewPassword(false); 
+                      if (!open) {
+                        setNewPassword("");
+                        setShowNewPassword(false);
                       }
                     }}>
                       <DialogTrigger asChild>
@@ -368,11 +380,8 @@ export default function ProfilePage() {
                             </div>
                           </div>
 
-                          {user?.providerData[0]?.providerId !== "google.com" && (
-                            <>
-                              <PasswordField label="Current Password" id="current-pass" value={currentPassword} onChange={setCurrentPassword} show={showPassword} onToggle={() => setShowPassword(!showPassword)} />
-                              <PasswordField label="New Password" id="new-pass" value={newPassword} onChange={setNewPassword} placeholder="Leave blank to keep current" show={showNewPassword} onToggle={() => setShowNewPassword(!showNewPassword)} />
-                            </>
+                          {!isGoogleUser && (
+                            <PasswordField label="New Password" id="new-pass" value={newPassword} onChange={setNewPassword} placeholder="Leave blank to keep current" show={showNewPassword} onToggle={() => setShowNewPassword(!showNewPassword)} />
                           )}
 
                           <div className="grid gap-1.5">
@@ -458,17 +467,17 @@ function PasswordField({ label, id, value, onChange, placeholder, show, onToggle
       <Label htmlFor={id} className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</Label>
       <div className="relative">
         <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input 
-          id={id} 
-          type={show ? "text" : "password"} 
-          value={value} 
+        <Input
+          id={id}
+          type={show ? "text" : "password"}
+          value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder || "••••••••••"} 
-          className="bg-muted border-none h-11 rounded-xl pl-10 pr-11" 
+          placeholder={placeholder || "••••••••••"}
+          className="bg-muted border-none h-11 rounded-xl pl-10 pr-11"
         />
-        <button 
-          type="button" 
-          onClick={onToggle} 
+        <button
+          type="button"
+          onClick={onToggle}
           className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
           aria-label={show ? "Hide password" : "Show password"}
         >

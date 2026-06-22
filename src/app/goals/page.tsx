@@ -19,8 +19,9 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn, formatCurrency } from "@/lib/utils";
-import { useUser, useCollection, useFirestore } from "@/firebase";
-import { collection, addDoc, deleteDoc, doc, query, updateDoc } from "firebase/firestore";
+import { useUser } from "@/lib/use-user";
+import { useCollection } from "@/lib/use-collection";
+import { supabase } from "@/lib/supabase";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { BudgetGoal } from "@/app/lib/types";
 
@@ -29,7 +30,6 @@ const MAX_AMOUNT = 100000000;
 
 export default function GoalsPage() {
   const { user } = useUser();
-  const db = useFirestore();
   const [isAdding, setIsAdding] = useState(false);
   const [newCat, setNewCat] = useState("");
   const [newLimit, setNewLimit] = useState("");
@@ -44,30 +44,28 @@ export default function GoalsPage() {
   useEffect(() => {
     if (editingGoal) {
       setEditingCategory(editingGoal.category);
-      setEditingLimit(editingGoal.monthlyLimit.toString());
-      setEditingSpent(editingGoal.currentSpent.toString());
+      setEditingLimit(editingGoal.monthly_limit.toString());
+      setEditingSpent(editingGoal.current_spent.toString());
     }
   }, [editingGoal]);
 
-  const goalsQuery = useMemo(
-    () => (uid ? query(collection(db, 'users', uid, 'goals')) : null),
-    [db, uid]
+  const { data: goals, loading, error, refetch } = useCollection<BudgetGoal>(
+    'goals',
+    uid
   );
-
-  const { data: goals, loading, error } = useCollection<BudgetGoal>(goalsQuery);
 
   const handleAddGoal = async () => {
     if (!user) return;
 
     const category = newCat.trim();
-    const monthlyLimit = Number(newLimit);
+    const monthly_limit = Number(newLimit);
 
     if (
       !category ||
       category.length > MAX_CATEGORY_LENGTH ||
-      !Number.isFinite(monthlyLimit) ||
-      monthlyLimit <= 0 ||
-      monthlyLimit > MAX_AMOUNT
+      !Number.isFinite(monthly_limit) ||
+      monthly_limit <= 0 ||
+      monthly_limit > MAX_AMOUNT
     ) {
       toast({
         variant: "destructive",
@@ -78,14 +76,18 @@ export default function GoalsPage() {
     }
 
     try {
-      await addDoc(collection(db, 'users', user.uid, 'goals'), {
+      const { error: insertError } = await supabase.from('goals').insert({
+        user_id: user.uid,
         category,
-        monthlyLimit,
-        currentSpent: 0
+        monthly_limit: monthly_limit,
+        current_spent: 0,
       });
+      if (insertError) throw insertError;
+
       setIsAdding(false);
       setNewCat("");
       setNewLimit("");
+      await refetch();
       toast({
         title: "Goal Established",
         description: `Target for ${category} is now active.`,
@@ -99,7 +101,9 @@ export default function GoalsPage() {
   const handleDelete = async (id: string) => {
     if (!user) return;
     try {
-      await deleteDoc(doc(db, 'users', user.uid, 'goals', id));
+      const { error: deleteError } = await supabase.from('goals').delete().eq('id', id);
+      if (deleteError) throw deleteError;
+      await refetch();
       toast({ title: "Removed", description: "Goal deleted." });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
@@ -116,18 +120,18 @@ export default function GoalsPage() {
     if (!user || !editingGoal) return;
 
     const category = editingCategory.trim();
-    const monthlyLimit = Number(editingLimit);
-    const currentSpent = Number(editingSpent);
+    const monthly_limit = Number(editingLimit);
+    const current_spent = Number(editingSpent);
 
     if (
       !category ||
       category.length > MAX_CATEGORY_LENGTH ||
-      !Number.isFinite(monthlyLimit) ||
-      monthlyLimit <= 0 ||
-      monthlyLimit > MAX_AMOUNT ||
-      !Number.isFinite(currentSpent) ||
-      currentSpent < 0 ||
-      currentSpent > MAX_AMOUNT
+      !Number.isFinite(monthly_limit) ||
+      monthly_limit <= 0 ||
+      monthly_limit > MAX_AMOUNT ||
+      !Number.isFinite(current_spent) ||
+      current_spent < 0 ||
+      current_spent > MAX_AMOUNT
     ) {
       toast({
         variant: "destructive",
@@ -138,11 +142,17 @@ export default function GoalsPage() {
     }
 
     try {
-      await updateDoc(doc(db, 'users', user.uid, 'goals', editingGoal.id), {
-        category,
-        monthlyLimit,
-        currentSpent,
-      });
+      const { error: updateError } = await supabase
+        .from('goals')
+        .update({
+          category,
+          monthly_limit: monthly_limit,
+          current_spent: current_spent,
+        })
+        .eq('id', editingGoal.id);
+      if (updateError) throw updateError;
+
+      await refetch();
       toast({ title: "Goal Updated", description: `Budget goal for ${category} has been adjusted.` });
       setIsEditing(false);
       setEditingGoal(null);
@@ -217,9 +227,9 @@ export default function GoalsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {goals?.map((budget) => {
-            const percent = (budget.currentSpent / budget.monthlyLimit) * 100 || 0;
-            const isOver = budget.currentSpent > budget.monthlyLimit;
-            const remaining = Math.max(0, budget.monthlyLimit - budget.currentSpent);
+            const percent = (budget.current_spent / budget.monthly_limit) * 100 || 0;
+            const isOver = budget.current_spent > budget.monthly_limit;
+            const remaining = Math.max(0, budget.monthly_limit - budget.current_spent);
             
             return (
               <Card key={budget.id} className="p-8 glass-card border border-white/5 hover:border-primary/40 transition-all duration-500 group relative overflow-hidden flex flex-col h-full">
@@ -242,7 +252,7 @@ export default function GoalsPage() {
                   <h3 className="text-2xl font-headline font-bold mb-2 group-hover:text-primary transition-colors">{budget.category}</h3>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium">
                     <DollarSign className="h-3.5 w-3.5" />
-                    <span>{formatCurrency(budget.currentSpent)} of {formatCurrency(budget.monthlyLimit)} spent</span>
+                    <span>{formatCurrency(budget.current_spent)} of {formatCurrency(budget.monthly_limit)} spent</span>
                   </div>
                 </div>
 

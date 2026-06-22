@@ -29,42 +29,31 @@ import {
 } from "recharts";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useMemo } from "react";
-import { useUser, useCollection } from "@/firebase";
-import { collection, query, orderBy, limit } from "firebase/firestore";
-import { useFirestore } from "@/firebase";
+import { useUser } from "@/lib/use-user";
+import { useCollection } from "@/lib/use-collection";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
   const { user } = useUser();
-  const db = useFirestore();
   const uid = user?.uid;
 
-  const transactionsQuery = useMemo(
-    () =>
-      uid
-        ? query(
-            collection(db, 'users', uid, 'transactions'),
-            orderBy('date', 'desc'),
-            limit(10)
-          )
-        : null,
-    [db, uid]
+  const { data: transactions, loading: txLoading } = useCollection<Transaction>(
+    'transactions',
+    uid,
+    { orderBy: { column: 'date', ascending: false }, limit: 10 }
   );
 
-  const goalsQuery = useMemo(
-    () => (uid ? query(collection(db, 'users', uid, 'goals')) : null),
-    [db, uid]
+  const { data: goals, loading: goalsLoading } = useCollection<BudgetGoal>(
+    'goals',
+    uid
   );
-
-  const { data: transactions, loading: txLoading } = useCollection<Transaction>(transactionsQuery);
-  const { data: goals, loading: goalsLoading } = useCollection<BudgetGoal>(goalsQuery);
 
   const totalSpend = transactions?.reduce((sum, t) => sum + t.amount, 0) || 0;
-  const monthlyBudget = goals?.reduce((sum, b) => sum + b.monthlyLimit, 0) || 0;
+  const monthlyBudget = goals?.reduce((sum, b) => sum + b.monthly_limit, 0) || 0;
   
   const barChartData = goals?.map(b => ({
     name: b.category,
-    value: b.currentSpent || 0
+    value: b.current_spent || 0
   })) || [];
 
   const trendData = [
@@ -211,13 +200,13 @@ export default function Dashboard() {
               </div>
               <div className="space-y-8">
                 {goals && goals.length > 0 ? goals.slice(0, 4).map((goal) => {
-                  const percent = (goal.currentSpent / goal.monthlyLimit) * 100;
+                  const percent = (goal.current_spent / goal.monthly_limit) * 100;
                   return (
                     <div key={goal.id} className="space-y-3">
                       <div className="flex justify-between items-end">
                         <div>
                           <span className="text-sm font-bold block mb-0.5">{goal.category}</span>
-                          <span className="text-[11px] text-muted-foreground uppercase tracking-widest">{formatCurrency(goal.currentSpent)} of {formatCurrency(goal.monthlyLimit)}</span>
+                          <span className="text-[11px] text-muted-foreground uppercase tracking-widest">{formatCurrency(goal.current_spent)} of {formatCurrency(goal.monthly_limit)}</span>
                         </div>
                         <span className="text-sm font-headline font-bold">
                           {Math.round(percent)}%
@@ -307,3 +296,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

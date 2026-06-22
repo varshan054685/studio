@@ -15,8 +15,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useUser, useAuth } from "@/firebase";
-import { signOut } from "firebase/auth";
+import { useUser } from "@/lib/use-user";
+import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
 const menuItems = [
@@ -30,13 +30,11 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useUser();
-  const auth = useAuth();
   const { toast } = useToast();
 
   const handleLogout = async () => {
-    if (!auth) return;
     try {
-      await signOut(auth);
+      await supabase.auth.signOut();
       toast({ title: "Logged out", description: "See you soon!" });
       router.push('/login');
     } catch (error) {
@@ -140,3 +138,4 @@ export function Sidebar() {
     </aside>
   );
 }
+
