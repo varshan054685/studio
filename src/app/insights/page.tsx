@@ -1,93 +1,48 @@
 "use client";
 
-import { useState, useMemo } from "react";
 import { Sparkles, BrainCircuit, Lightbulb, AlertTriangle, RefreshCw, BarChart3, TrendingUp, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getAISpendingInsights, AISpendingInsightsOutput } from "@/ai/flows/ai-spending-insights-flow";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/lib/use-user";
 import { useCollection } from "@/lib/use-collection";
+import { useInsights } from "@/lib/insights-context";
 import type { Transaction, BudgetGoal } from "@/app/lib/types";
 
 export default function InsightsPage() {
   const { user } = useUser();
-  const [loading, setLoading] = useState(false);
-  const [insights, setInsights] = useState<AISpendingInsightsOutput | null>(null);
-  const { toast } = useToast();
   const uid = user?.uid;
+  const { insights, loading, analyze } = useInsights();
 
-  const { data: transactions, error: txError } = useCollection<Transaction>('transactions', uid);
-  const { data: goals, error: goalsError } = useCollection<BudgetGoal>('goals', uid);
+  const { data: transactions, error: txError } = useCollection<Transaction>("transactions", uid);
+  const { data: goals, error: goalsError } = useCollection<BudgetGoal>("goals", uid);
 
-  const generateInsights = async () => {
-    if (!transactions || transactions.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "No Data",
-        description: "Please add some transactions before generating AI insights.",
-      });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const data = await getAISpendingInsights({
-        transactions: transactions.map(t => ({
-          date: t.date,
-          description: t.description,
-          amount: t.amount,
-          category: t.category
-        })),
-        budgetGoals: goals?.map(b => ({
-          category: b.category,
-          monthlyLimit: b.monthly_limit
-        })) || [],
-        summaryPeriod: "last month"
-      });
-      setInsights(data);
-      toast({
-        title: "Analysis Complete",
-        description: "AI has successfully processed your financial data.",
-      });
-    } catch (error) {
-      console.error(error);
-      const message = error instanceof Error ? error.message : String(error);
-      const is503 = message.includes('503') || message.includes('high demand');
-      toast({
-        variant: "destructive",
-        title: is503 ? "AI Service Busy" : "Analysis Failed",
-        description: is503 
-          ? "The AI model is currently experiencing high demand. Please try again in a few seconds." 
-          : (message || "Could not reach the AI brain. Please check your configuration."),
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  const handleAnalyze = () => analyze(transactions ?? [], goals ?? []);
 
   return (
     <div className="p-4 md:p-8 lg:p-12 max-w-5xl mx-auto w-full space-y-10">
       {(txError || goalsError) && (
         <div className="rounded-3xl border border-destructive/20 bg-destructive/10 p-6 text-destructive">
           <h2 className="text-xl font-bold mb-1">Unable to load insight data</h2>
-          <p>{txError?.message || goalsError?.message || 'Permission denied when fetching your financial data.'}</p>
+          <p>{txError?.message || goalsError?.message}</p>
         </div>
       )}
+
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h1 className="text-4xl md:text-5xl font-headline font-bold text-foreground mb-2">AI Intelligence</h1>
           <p className="text-muted-foreground text-lg">Machine learning analysis of your spending behavior.</p>
         </div>
-        <Button 
-          onClick={generateInsights} 
-          disabled={loading || !transactions?.length}
-          className="rounded-xl bg-primary text-primary-foreground font-bold font-headline hover:bg-primary/90 gap-2 h-12 px-6 shadow-[0_0_25px_rgba(186,156,255,0.4)] transition-all"
-        >
-          {loading ? <RefreshCw className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
-          {insights ? "REFRESH AI" : "GENERATE REPORT"}
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={handleAnalyze}
+            disabled={loading || !transactions?.length}
+            className="rounded-xl bg-primary text-primary-foreground font-bold font-headline hover:bg-primary/90 gap-2 h-12 px-6 shadow-[0_0_25px_rgba(186,156,255,0.4)] transition-all"
+          >
+            {loading ? <RefreshCw className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+            {insights ? "REFRESH AI" : "GENERATE REPORT"}
+          </Button>
+        </div>
       </header>
 
       {!insights && !loading && (
@@ -97,12 +52,12 @@ export default function InsightsPage() {
           </div>
           <h2 className="text-4xl font-headline font-bold mb-4 tracking-tight">Unlock Deep Insights</h2>
           <p className="text-muted-foreground max-w-lg mb-10 text-lg leading-relaxed">
-            Our neural analysis tool scans your history to discover patterns, 
+            Our neural analysis tool scans your history to discover patterns,
             detect leaks, and build a personalized path to your financial goals.
           </p>
-          <Button 
-            size="lg" 
-            onClick={generateInsights} 
+          <Button
+            size="lg"
+            onClick={handleAnalyze}
             disabled={!transactions?.length}
             className="rounded-2xl px-12 h-14 text-lg font-headline font-bold bg-foreground text-background hover:scale-105 transition-all disabled:opacity-50"
           >
@@ -111,7 +66,7 @@ export default function InsightsPage() {
         </div>
       )}
 
-      {loading && (
+      {loading && !insights && (
         <div className="space-y-8 animate-pulse">
           <Skeleton className="h-56 w-full rounded-3xl bg-white/5 border border-white/5" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -122,8 +77,9 @@ export default function InsightsPage() {
         </div>
       )}
 
-      {insights && !loading && (
+      {insights && (
         <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-1000">
+
           <Card className="p-10 glass-card border-primary/30 bg-primary/5 relative overflow-hidden group">
             <div className="flex items-center gap-4 mb-6">
               <div className="p-3 rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
@@ -131,7 +87,7 @@ export default function InsightsPage() {
               </div>
               <h2 className="text-3xl font-headline font-bold">The Verdict</h2>
             </div>
-            <p className="text-xl leading-relaxed text-foreground/90 font-medium tracking-tight italic">“{insights.overallInsights}”</p>
+            <p className="text-xl leading-relaxed text-foreground/90 font-medium tracking-tight italic">"{insights.overallInsights}"</p>
             <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
               <Sparkles className="h-48 w-48 text-primary" />
             </div>

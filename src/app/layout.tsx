@@ -8,6 +8,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { MobileNav } from "@/components/MobileNav";
 import { SupabaseProvider } from '@/lib/supabase-provider';
 import { useUser } from '@/lib/use-user';
+import { InsightsProvider } from '@/lib/insights-context';
 
 
 export default function RootLayout({
@@ -22,6 +23,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased bg-background text-foreground min-h-screen">
         <SupabaseProvider>
+          <InsightsProvider>
           <AuthGuard>
             <div className="flex min-h-screen">
               <Sidebar />
@@ -33,6 +35,7 @@ export default function RootLayout({
               </div>
             </div>
           </AuthGuard>
+          </InsightsProvider>
           <Toaster />
         </SupabaseProvider>
       </body>
