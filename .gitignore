@@ -1,5 +1,3 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
 /node_modules
 /.pnp
@@ -37,11 +35,17 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# genkit
 .genkit/*
-.env*
+
+# env files — never commit secrets
+.env
+.env.*
 !.env.example
 
 # firebase
 firebase-debug.log
 firestore-debug.log
-.env
+
+# supabase
+supabase-schema.sql
